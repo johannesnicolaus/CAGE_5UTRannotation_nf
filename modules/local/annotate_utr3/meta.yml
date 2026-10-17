@@ -1,0 +1,73 @@
+name: annotate_utr3
+description: "Set the 3' end of coding mRNAs from poly(A)-read evidence or the polyadenylation signal closest to the annotated end"
+keywords:
+  - "polyadenylation"
+  - "3' UTR"
+  - "gff3"
+tools:
+  - python:
+      description: Python 3 script from the pipeline bin/ directory (annotate_utr3.py, standard library only)
+      homepage: https://www.python.org
+      licence:
+        - "PSF-2.0"
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing annotation information
+          e.g. [ id:'I25_prim' ]
+    - gff:
+        type: file
+        description: "Annotation from ANNOTATE_UTR5"
+        pattern: "*.gff3"
+    - pas:
+        type: file
+        description: "Polyadenylation-signal BED from SCAN_PAS"
+        pattern: "*.pas.bed"
+output:
+  gff:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing annotation information
+            e.g. [ id:'I25_prim' ]
+      - "*.utr.gff3":
+          type: file
+          description: "Final annotation with five_prime_UTR and three_prime_UTR rows"
+          pattern: "*.utr.gff3"
+  log:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing annotation information
+            e.g. [ id:'I25_prim' ]
+      - "*.utr3.log":
+          type: file
+          description: "Counts of mRNAs per outcome"
+          pattern: "*.utr3.log"
+  versions_python:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - python:
+          type: string
+          description: The name of the tool
+      - python --version | sed 's/Python //':
+          type: eval
+          description: The expression to obtain the version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - python:
+          type: string
+          description: The name of the tool
+      - python --version | sed 's/Python //':
+          type: eval
+          description: The expression to obtain the version of the tool
+authors:
+  - "@johannesnicolaus"
+maintainers:
+  - "@johannesnicolaus"

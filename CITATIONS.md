@@ -10,9 +10,21 @@
 
 ## Pipeline tools
 
-- [FastQC](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/)
+- [EGAPx](https://github.com/ncbi/egapx) (input annotations)
 
-> Andrews, S. (2010). FastQC: A Quality Control Tool for High Throughput Sequence Data [Online].
+> NCBI Eukaryotic Genome Annotation Pipeline - External (EGAPx). https://github.com/ncbi/egapx
+
+- [luscombeu/cagescan](https://github.com/johannesnicolaus/cagescan_nextflow) (input TSS clusters)
+
+> Wibisana JN. luscombeu/cagescan: TSS clusters and 5'-anchored transcripts from paired-end CAGE (CAGEscan) reads.
+
+- [AGAT](https://github.com/NBISweden/AGAT)
+
+> Dainat J. AGAT: Another Gff Analysis Toolkit to handle annotations in any GTF/GFF format. Zenodo. doi: 10.5281/zenodo.3552717
+
+- [gffread](https://pubmed.ncbi.nlm.nih.gov/32489650/)
+
+> Pertea G, Pertea M. GFF Utilities: GffRead and GffCompare. F1000Res. 2020 Apr 28;9:ISCB Comm J-304. doi: 10.12688/f1000research.23297.2. PubMed PMID: 32489650.
 
 - [MultiQC](https://pubmed.ncbi.nlm.nih.gov/27312411/)
 

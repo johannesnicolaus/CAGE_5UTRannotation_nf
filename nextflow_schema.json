@@ -10,7 +10,10 @@
             "type": "object",
             "fa_icon": "fas fa-terminal",
             "description": "Define where the pipeline should find input data and save output data.",
-            "required": ["input", "outdir"],
+            "required": [
+                "input",
+                "outdir"
+            ],
             "properties": {
                 "input": {
                     "type": "string",
@@ -19,9 +22,19 @@
                     "schema": "assets/schema_input.json",
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
-                    "description": "Path to comma-separated file containing information about the samples in the experiment.",
-                    "help_text": "You will need to create a design file with information about the samples in your experiment before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row.",
+                    "description": "Path to comma-separated file with one row per genome annotation.",
+                    "help_text": "A comma-separated file with a header row and one row per genome annotation, with the columns `id`, `genome` (FASTA), `annotation` (EGAPx GFF3) and `cagescan_dir` (a luscombeu/cagescan results directory for the same genome). See the usage docs.",
                     "fa_icon": "fas fa-file-csv"
+                },
+                "cluster_set": {
+                    "type": "string",
+                    "default": "broad",
+                    "enum": [
+                        "broad",
+                        "sharp"
+                    ],
+                    "description": "cagescan TSS cluster set to use: `broad` (pooled paraclu) or `sharp` (RECLU, reproducible across replicates).",
+                    "fa_icon": "fas fa-layer-group"
                 },
                 "outdir": {
                     "type": "string",
@@ -40,6 +53,97 @@
                     "type": "string",
                     "description": "MultiQC report title. Printed as page header, used for filename if not otherwise specified.",
                     "fa_icon": "fas fa-file-signature"
+                }
+            }
+        },
+        "utr5_options": {
+            "title": "5' UTR options",
+            "type": "object",
+            "fa_icon": "fas fa-arrow-right",
+            "description": "Choice of the CAGE TSS that becomes the 5' end of each coding mRNA.",
+            "properties": {
+                "tss_max_dist": {
+                    "type": "integer",
+                    "default": 500,
+                    "minimum": 1,
+                    "description": "Maximum 5' UTR length, in bases along the transcript; TSSs further from the ATG are ignored.",
+                    "fa_icon": "fas fa-ruler-horizontal"
+                },
+                "tss_selection": {
+                    "type": "string",
+                    "default": "closest_atg",
+                    "enum": [
+                        "closest_atg",
+                        "dominant"
+                    ],
+                    "description": "Which qualifying TSS to use: the one closest to the ATG (shortest 5' UTR) or the one with the highest count.",
+                    "help_text": "`closest_atg` picks the spliced-leader acceptor of trans-spliced genes, which lies downstream of the outron TSS. `dominant` picks the strongest peak in the window.",
+                    "fa_icon": "fas fa-hand-pointer"
+                },
+                "tss_min_rel": {
+                    "type": "number",
+                    "default": 0.1,
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Minimum TSS count relative to the strongest TSS in the window, to ignore weak exonic CAGE peaks.",
+                    "fa_icon": "fas fa-percent"
+                },
+                "tss_min_count": {
+                    "type": "number",
+                    "default": 0,
+                    "minimum": 0,
+                    "description": "Minimum pooled CAGE count of a TSS (summed over samples).",
+                    "fa_icon": "fas fa-filter"
+                },
+                "utr5_min_len": {
+                    "type": "integer",
+                    "default": 1,
+                    "minimum": 0,
+                    "description": "Minimum 5' UTR length of a TSS.",
+                    "fa_icon": "fas fa-ruler"
+                },
+                "sl_min_fraction": {
+                    "type": "number",
+                    "default": 0.5,
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Minimum fraction of spliced-leader READ1s for a TSS to be labelled `sl` instead of `nosl`.",
+                    "fa_icon": "fas fa-tag"
+                }
+            }
+        },
+        "utr3_options": {
+            "title": "3' UTR options",
+            "type": "object",
+            "fa_icon": "fas fa-arrow-left",
+            "description": "Evidence used to set the 3' end of each coding mRNA.",
+            "properties": {
+                "keep_polya_evidence": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Keep the EGAPx 3' end of models supported by poly(A)-tail reads (`experiment=COORDINATES: polyA evidence`).",
+                    "fa_icon": "fas fa-lock"
+                },
+                "pas_motifs": {
+                    "type": "string",
+                    "default": "AATAAA",
+                    "pattern": "^[ACGTacgt]+(,[ACGTacgt]+)*$",
+                    "description": "Comma-separated polyadenylation-signal motifs (DNA, RNA sense).",
+                    "fa_icon": "fas fa-dna"
+                },
+                "pas_window": {
+                    "type": "integer",
+                    "default": 500,
+                    "minimum": 1,
+                    "description": "Maximum distance of the polyadenylation signal from the EGAPx 3' end, in bases along the transcript.",
+                    "fa_icon": "fas fa-ruler-horizontal"
+                },
+                "pas_offset": {
+                    "type": "integer",
+                    "default": 0,
+                    "minimum": 0,
+                    "description": "Bases from the end of the motif to the new 3' end (cleavage is ~10-30 nt downstream of AATAAA).",
+                    "fa_icon": "fas fa-arrows-alt-h"
                 }
             }
         },
@@ -110,7 +214,14 @@
                     "description": "Method used to save pipeline results to output directory.",
                     "help_text": "The Nextflow `publishDir` option specifies which intermediate files should be saved to the output directory. This option tells the pipeline what method should be used to move these files. See [Nextflow docs](https://www.nextflow.io/docs/latest/process.html#publishdir) for details.",
                     "fa_icon": "fas fa-copy",
-                    "enum": ["symlink", "rellink", "link", "copy", "copyNoFollow", "move"],
+                    "enum": [
+                        "symlink",
+                        "rellink",
+                        "link",
+                        "copy",
+                        "copyNoFollow",
+                        "move"
+                    ],
                     "hidden": true
                 },
                 "email_on_fail": {
@@ -180,7 +291,10 @@
                     "hidden": true
                 },
                 "help": {
-                    "type": ["boolean", "string"],
+                    "type": [
+                        "boolean",
+                        "string"
+                    ],
                     "description": "Display the help message."
                 },
                 "help_full": {
@@ -197,6 +311,12 @@
     "allOf": [
         {
             "$ref": "#/$defs/input_output_options"
+        },
+        {
+            "$ref": "#/$defs/utr5_options"
+        },
+        {
+            "$ref": "#/$defs/utr3_options"
         },
         {
             "$ref": "#/$defs/institutional_config_options"
