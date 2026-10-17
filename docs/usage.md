@@ -4,51 +4,96 @@
 
 ## Introduction
 
-<!-- TODO nf-core: Add documentation about anything specific to running your pipeline. For general topics, please point to (and add to) the main nf-core website. -->
+The pipeline takes, for each genome:
+- an [EGAPx](https://github.com/ncbi/egapx) annotation (`complete.genomic.gff`);
+- the genome FASTA it was made on;
+- the results of [luscombeu/cagescan](https://github.com/johannesnicolaus/cagescan_nextflow) run on CAGE libraries against the **same genome**.
+
+The sequence names must match across the three; EGAPx keeps the names of the input genome.
 
 ## Samplesheet input
 
-You will need to create a samplesheet with information about the samples you would like to analyse before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row as shown in the examples below.
+The samplesheet is a comma-separated file with a header row and one row per genome annotation. Several genomes, for example the Okinawa, mainland and Europe assemblies, can be processed in one run.
 
 ```bash
 --input '[path to samplesheet file]'
 ```
 
-### Multiple runs of the same sample
-
-The `sample` identifiers have to be the same when you have re-sequenced the same sample more than once e.g. to increase sequencing depth. The pipeline will concatenate the raw reads before performing any downstream analysis. Below is an example for the same sample sequenced across 3 lanes:
-
 ```csv title="samplesheet.csv"
-sample,fastq_1,fastq_2
-CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
-CONTROL_REP1,AEG588A1_S1_L003_R1_001.fastq.gz,AEG588A1_S1_L003_R2_001.fastq.gz
-CONTROL_REP1,AEG588A1_S1_L004_R1_001.fastq.gz,AEG588A1_S1_L004_R2_001.fastq.gz
+id,genome,annotation,cagescan_dir
+I25_prim,/path/to/I25_primary_assembly_v1.0.0.fa,/path/to/egapx_runs/annotation_egapx/I25_prim/complete.genomic.gff,/path/to/cagescan/I25_okinawa/results
 ```
 
-### Full samplesheet
-
-The pipeline will auto-detect whether a sample is single- or paired-end using the information provided in the samplesheet. The samplesheet can have as many columns as you desire, however, there is a strict requirement for the first 3 columns to match those defined in the table below.
-
-A final samplesheet file consisting of both single- and paired-end data may look something like the one below. This is for 6 samples, where `TREATMENT_REP3` has been sequenced twice.
-
-```csv title="samplesheet.csv"
-sample,fastq_1,fastq_2
-CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
-CONTROL_REP2,AEG588A2_S2_L002_R1_001.fastq.gz,AEG588A2_S2_L002_R2_001.fastq.gz
-CONTROL_REP3,AEG588A3_S3_L002_R1_001.fastq.gz,AEG588A3_S3_L002_R2_001.fastq.gz
-TREATMENT_REP1,AEG588A4_S4_L003_R1_001.fastq.gz,
-TREATMENT_REP2,AEG588A5_S5_L003_R1_001.fastq.gz,
-TREATMENT_REP3,AEG588A6_S6_L003_R1_001.fastq.gz,
-TREATMENT_REP3,AEG588A6_S6_L004_R1_001.fastq.gz,
-```
-
-| Column    | Description                                                                                                                                                                            |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sample`  | Custom sample name. This entry will be identical for multiple sequencing libraries/runs from the same sample. Spaces in sample names are automatically converted to underscores (`_`). |
-| `fastq_1` | Full path to FastQ file for Illumina short reads 1. File has to be gzipped and have the extension ".fastq.gz" or ".fq.gz".                                                             |
-| `fastq_2` | Full path to FastQ file for Illumina short reads 2. File has to be gzipped and have the extension ".fastq.gz" or ".fq.gz".                                                             |
+| Column         | Description                                                                                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`           | Name of the annotation, used as the file name prefix of every output. Letters, digits, `_`, `-` and `.` only; each id once.                                              |
+| `genome`       | Genome FASTA (`.fa`, `.fasta` or `.fna`, optionally gzipped).                                                                                                             |
+| `annotation`   | EGAPx GFF3 (`.gff` or `.gff3`, optionally gzipped). Other GFF3 files with gene → mRNA → exon/CDS rows work too, if the CDS includes the stop codon, as in EGAPx output. |
+| `cagescan_dir` | The cagescan `--outdir`, i.e. the directory that contains `tss_clusters/`.                                                                                                |
 
 An [example samplesheet](../assets/samplesheet.csv) has been provided with the pipeline.
+
+### What is read from the cagescan results
+
+Files are taken from `tss_clusters/<set>/`, where `<set>` is `--cluster_set` (`broad`, the default, or `sharp`):
+
+- `all_samples.<set>.tss_clusters.bed`: the clusters. The dominant CTSS (`thickStart`) is the TSS position.
+- `all_samples.<set>.tss_cluster_counts.tsv`: READ1 counts per cluster and sample, summed over samples.
+- `all_samples.<set>.tss_cluster_sl_counts.tsv`: READ1s that carried the spliced leader. cagescan writes this file only when `--sl_sequence` was given and SL reads were found. Without it, every TSS is labelled `nosl`.
+
+A cluster is labelled `sl` when SL reads make up at least `--sl_min_fraction` (default 0.5) of its reads. The fraction and the SL count are kept as attributes, so TSSs used by both trans-spliced and non-trans-spliced RNAs can be found.
+
+## How UTRs are assigned
+
+Only `mRNA` features with a CDS are changed. lncRNAs, pseudogenes and other transcripts are copied unchanged.
+
+### 5' end (`ANNOTATE_UTR5`)
+
+1. **Candidates.** TSS peaks on the transcript's strand qualify if:
+   - they give a 5' UTR of `--utr5_min_len` to `--tss_max_dist` bases, counted along the transcript (5' UTR exons, then the genome upstream of the EGAPx 5' end);
+   - they are not in a 5' UTR intron;
+   - the new 5' end does not overlap a CDS of another gene on the same strand.
+2. **Noise filter.** Peaks below `--tss_min_count` or below `--tss_min_rel` × the strongest candidate are dropped. CAGE "exon painting" (recapping or degradation) leaves weak peaks inside exons, and these would otherwise be picked as closest to the ATG.
+3. **Choice.**
+   - `--tss_selection closest_atg` (default) takes the shortest UTR. In trans-spliced genes the mature 5' end is the SL acceptor, downstream of the outron TSS, so this picks the acceptor.
+   - `--tss_selection dominant` takes the highest count.
+   - Ties prefer `nosl`.
+4. **Edit.** Exons upstream of the TSS are dropped and the first exon starts at the TSS, so the EGAPx 5' UTR is **extended or trimmed**. Gene bounds follow. CDSs are never changed.
+5. **Unchanged models.** Models without a qualifying TSS, and models open at the 5' end (EGAPx `partial`), keep the EGAPx 5' end (`utr5_evidence=EGAPx`).
+
+### 3' end (`ANNOTATE_UTR3`)
+
+The first rule that applies sets the 3' end:
+
+1. **`polyA_reads`.** EGAPx marked the model `experiment=COORDINATES: polyA evidence`: RNA-seq reads that contain the poly(A) tail mapped the cleavage site. The EGAPx end is kept. Switch this off with `--keep_polya_evidence false`.
+2. **`PAS`.** A polyadenylation signal (`--pas_motifs`, default `AATAAA`) on the transcript's strand qualifies if it:
+   - lies after the stop codon;
+   - is within `--pas_window` bases of the EGAPx 3' end, measured along the transcript;
+   - is not in a 3' UTR intron;
+   - does not reach a CDS of another gene on the same strand.
+
+   The motif **closest to the EGAPx end** is used, so short-read coverage places the end and the motif sets the base. The new end is the motif end + `--pas_offset`; cleavage is usually 10-30 nt downstream of AATAAA. The 3' UTR is trimmed or extended.
+3. **`EGAPx`.** No signal qualified, and the EGAPx 3' end is kept.
+
+The *O. dioica* genome is AT-rich, so AATAAA also occurs by chance. `utr3_evidence` and the UTR statistics show how many ends each rule set.
+
+## Parameters
+
+All parameters, with defaults, are in the [parameter schema](../nextflow_schema.json) (`nextflow run luscombeu/utrannotation --help`). The main ones:
+
+| Parameter               | Default       | Meaning                                                              |
+| ----------------------- | ------------- | -------------------------------------------------------------------- |
+| `--cluster_set`         | `broad`       | cagescan cluster set (`broad` or `sharp`)                            |
+| `--tss_max_dist`        | `500`         | maximum 5' UTR length (bases along the transcript)                   |
+| `--tss_selection`       | `closest_atg` | `closest_atg` or `dominant`                                          |
+| `--tss_min_rel`         | `0.1`         | minimum count relative to the strongest TSS in the window            |
+| `--tss_min_count`       | `0`           | minimum pooled TSS count                                             |
+| `--utr5_min_len`        | `1`           | minimum 5' UTR length                                                |
+| `--sl_min_fraction`     | `0.5`         | minimum SL read fraction for `tss_type=sl`                           |
+| `--keep_polya_evidence` | `true`        | keep EGAPx 3' ends supported by poly(A) reads                        |
+| `--pas_motifs`          | `AATAAA`      | comma-separated polyadenylation-signal motifs                        |
+| `--pas_window`          | `500`         | maximum distance of the signal from the EGAPx 3' end                 |
+| `--pas_offset`          | `0`           | bases from the motif end to the 3' end                               |
 
 ## Running the pipeline
 

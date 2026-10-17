@@ -1,0 +1,67 @@
+name: cage_tss_table
+description: "Combine cagescan TSS clusters, counts and spliced-leader counts into one TSS table labelled sl / nosl"
+keywords:
+  - "cage"
+  - "tss"
+  - "spliced leader"
+tools:
+  - python:
+      description: Python 3 script from the pipeline bin/ directory (cage_tss_table.py, standard library only)
+      homepage: https://www.python.org
+      licence:
+        - "PSF-2.0"
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing annotation information
+          e.g. [ id:'I25_prim' ]
+    - clusters:
+        type: file
+        description: "cagescan all_samples.<set>.tss_clusters.bed (BED9, thickStart = dominant CTSS)"
+        pattern: "*.bed"
+    - counts:
+        type: file
+        description: "cagescan all_samples.<set>.tss_cluster_counts.tsv"
+        pattern: "*.tsv"
+    - sl_counts:
+        type: file
+        description: "cagescan all_samples.<set>.tss_cluster_sl_counts.tsv, or [] when the dataset has no spliced leader"
+        pattern: "*.tsv"
+output:
+  tsv:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing annotation information
+            e.g. [ id:'I25_prim' ]
+      - "*.tss.tsv":
+          type: file
+          description: "TSS table: chrom, peak (1-based), strand, tss_id, count, sl_count, sl_fraction, tss_type"
+          pattern: "*.tss.tsv"
+  versions_python:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - python:
+          type: string
+          description: The name of the tool
+      - python --version | sed 's/Python //':
+          type: eval
+          description: The expression to obtain the version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - python:
+          type: string
+          description: The name of the tool
+      - python --version | sed 's/Python //':
+          type: eval
+          description: The expression to obtain the version of the tool
+authors:
+  - "@johannesnicolaus"
+maintainers:
+  - "@johannesnicolaus"

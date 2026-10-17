@@ -5,9 +5,24 @@
         "https://github.com/nf-core/modules.git": {
             "modules": {
                 "nf-core": {
-                    "fastqc": {
+                    "agat/convertspgff2gtf": {
                         "branch": "master",
-                        "git_sha": "6d46786420b4d7bc88eba026eb389c0c5535d120",
+                        "git_sha": "5b78ea13a2b927438f85f4242dbbf389d5bc5bde",
+                        "installed_by": ["modules"]
+                    },
+                    "agat/spstatistics": {
+                        "branch": "master",
+                        "git_sha": "5b78ea13a2b927438f85f4242dbbf389d5bc5bde",
+                        "installed_by": ["modules"]
+                    },
+                    "gffread": {
+                        "branch": "master",
+                        "git_sha": "b3d1ca84b3f0051498abb91bd4333b701be4384d",
+                        "installed_by": ["modules"]
+                    },
+                    "gunzip": {
+                        "branch": "master",
+                        "git_sha": "0902eac3012baaf4f9ab6513c8c55acc9353c96c",
                         "installed_by": ["modules"]
                     },
                     "multiqc": {

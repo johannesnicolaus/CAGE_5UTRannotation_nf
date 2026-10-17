@@ -2,32 +2,46 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://raw.githubusercontent.com/luscombeu/utrannotation/master/assets/schema_input.json",
     "title": "luscombeu/utrannotation pipeline - params.input schema",
-    "description": "Schema for the file provided with params.input",
+    "description": "Schema for the file provided with params.input: one row per genome annotation",
     "type": "array",
     "items": {
         "type": "object",
         "properties": {
-            "sample": {
+            "id": {
                 "type": "string",
+                "pattern": "^[A-Za-z0-9_.-]+$",
+                "errorMessage": "Annotation id must be provided and may contain only letters, digits, '_', '-' and '.'",
+                "meta": [
+                    "id"
+                ]
+            },
+            "genome": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+\\.(fa|fasta|fna)(\\.gz)?$",
+                "errorMessage": "Genome FASTA must be provided, cannot contain spaces and must end in .fa, .fasta or .fna (optionally .gz)"
+            },
+            "annotation": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+\\.gff3?(\\.gz)?$",
+                "errorMessage": "Annotation must be an EGAPx-style GFF3 ending in .gff or .gff3 (optionally .gz), without spaces"
+            },
+            "cagescan_dir": {
+                "type": "string",
+                "format": "directory-path",
+                "exists": true,
                 "pattern": "^\\S+$",
-                "errorMessage": "Sample name must be provided and cannot contain spaces",
-                "meta": ["id"]
-            },
-            "fastq_1": {
-                "type": "string",
-                "format": "file-path",
-                "exists": true,
-                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.f(ast)?q\\.gz$",
-                "errorMessage": "FastQ file for reads 1 must be provided, cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
-            },
-            "fastq_2": {
-                "type": "string",
-                "format": "file-path",
-                "exists": true,
-                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.f(ast)?q\\.gz$",
-                "errorMessage": "FastQ file for reads 2 cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
+                "errorMessage": "cagescan_dir must be an existing luscombeu/cagescan results directory (the one containing tss_clusters/), without spaces"
             }
         },
-        "required": ["sample", "fastq_1"]
+        "required": [
+            "id",
+            "genome",
+            "annotation",
+            "cagescan_dir"
+        ]
     }
 }

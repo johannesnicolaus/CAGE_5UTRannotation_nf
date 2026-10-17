@@ -1,0 +1,73 @@
+name: utr_stats
+description: "Compare UTR lengths and evidence before and after UTR annotation"
+keywords:
+  - "utr"
+  - "statistics"
+  - "multiqc"
+tools:
+  - python:
+      description: Python 3 script from the pipeline bin/ directory (utr_stats.py, standard library only)
+      homepage: https://www.python.org
+      licence:
+        - "PSF-2.0"
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing annotation information
+          e.g. [ id:'I25_prim' ]
+    - before:
+        type: file
+        description: "Input annotation (EGAPx GFF3)"
+        pattern: "*.{gff,gff3}"
+    - after:
+        type: file
+        description: "Annotation from ANNOTATE_UTR3"
+        pattern: "*.gff3"
+output:
+  tsv:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing annotation information
+            e.g. [ id:'I25_prim' ]
+      - "*.utr_per_transcript.tsv":
+          type: file
+          description: "One row per coding mRNA with UTR lengths before and after, and evidence"
+          pattern: "*.utr_per_transcript.tsv"
+  mqc:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing annotation information
+            e.g. [ id:'I25_prim' ]
+      - "*_mqc.tsv":
+          type: file
+          description: "MultiQC custom-content table and bar graphs"
+          pattern: "*_mqc.tsv"
+  versions_python:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - python:
+          type: string
+          description: The name of the tool
+      - python --version | sed 's/Python //':
+          type: eval
+          description: The expression to obtain the version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - python:
+          type: string
+          description: The name of the tool
+      - python --version | sed 's/Python //':
+          type: eval
+          description: The expression to obtain the version of the tool
+authors:
+  - "@johannesnicolaus"
+maintainers:
+  - "@johannesnicolaus"
