@@ -15,9 +15,9 @@
    --split-min-count reads lies on its strand between the end of the previous gene and
    the gene's start codon (its first transcript base for non-coding genes): the gene
    has its own promoter, however short the intergenic distance (as split_operons()).
-   A nosl TSS exactly 2 bases upstream of an sl TSS (on the A of the acceptor AG), or
-   within --sl-shadow bases of a stronger sl TSS, is taken as leftover SL reads and does
-   not split.
+   SL acceptor rule (as in annotate_utr5.py): a nosl TSS downstream of an sl TSS of the
+   gene (inside the mature trans-spliced mRNA), or fewer than --min-outron bases upstream
+   of it (too close to start an outron), does not split.
 4. Runs of at least --min-genes genes are reported.
 
 Outputs:
@@ -106,17 +106,16 @@ def candidate_runs(genes, max_gap):
             yield run
 
 
-def shadowed(pos, row, strand, rows, shadow):
-    """True for a nosl TSS on the A of an SL acceptor (2 bases upstream of an sl TSS), or
-    within `shadow` bases of a stronger sl TSS."""
-    if shadow <= 0:
-        return False
-    acceptor_a = pos + 2 if strand == "+" else pos - 2
-    return any(r["tss_type"] == "sl" and abs(p - pos) <= max(shadow, 2)
-               and (p == acceptor_a or r["count"] > row["count"]) for p, r in rows)
+def inside_acceptor_zone(pos, strand, sl_positions, min_outron):
+    """True if pos is downstream of, or fewer than min_outron bases upstream of, an sl TSS."""
+    for a in sl_positions:
+        upstream = (a - pos) if strand == "+" else (pos - a)
+        if upstream < min_outron:
+            return True
+    return False
 
 
-def split_run(run, tss_index, split_min_count, shadow):
+def split_run(run, tss_index, split_min_count, min_outron):
     """Split a run before genes that have a nosl TSS upstream of their start codon.
 
     Returns (list of operons, {gene id: splitting TSS row}, {gene id: sl TSS upstream}).
@@ -128,13 +127,12 @@ def split_run(run, tss_index, split_min_count, shadow):
             lo, hi = edge + 1, g.atg
         else:
             lo, hi = g.atg, edge - 1
-        upstream = [(p, row) for p, row in tss_index.window(g.seqid, g.strand, lo - max(shadow, 2), hi + max(shadow, 2))
-                    if row["count"] > 0]
-        inside = [(p, row) for p, row in upstream if lo <= p <= hi]
+        inside = [(p, row) for p, row in tss_index.window(g.seqid, g.strand, lo, hi) if row["count"] > 0]
+        acceptors = [p for p, row in inside if row["tss_type"] == "sl"]
         nosl = [row for p, row in inside
                 if row["tss_type"] == "nosl" and row["count"] >= split_min_count
-                and not shadowed(p, row, g.strand, upstream, shadow)]
-        sl_upstream[g.id] = any(row["tss_type"] == "sl" for _, row in inside)
+                and not inside_acceptor_zone(p, g.strand, acceptors, min_outron)]
+        sl_upstream[g.id] = bool(acceptors)
         if nosl:
             splits[g.id] = max(nosl, key=lambda r: r["count"])
             pieces.append([(g, gap)])
@@ -152,8 +150,8 @@ def main():
     parser.add_argument("--max-gap", type=int, default=500, help="intergenic distances below this join genes")
     parser.add_argument("--split-min-count", type=float, default=0, help="minimum pooled count of a splitting nosl TSS")
     parser.add_argument("--min-genes", type=int, default=2)
-    parser.add_argument("--sl-shadow", type=int, default=5,
-                        help="a nosl TSS this close to a stronger sl TSS does not split (0 to disable)")
+    parser.add_argument("--min-outron", type=int, default=50,
+                        help="a nosl TSS downstream of, or closer than this upstream of, an sl TSS does not split")
     parser.add_argument("--biotypes", default="protein_coding",
                         help="comma-separated gene_biotype values of the genes considered ('all' for every gene)")
     args = parser.parse_args()
@@ -174,7 +172,7 @@ def main():
     for run in candidate_runs(genes, args.max_gap):
         if len(run) < 2:
             continue
-        pieces, splits, sl_upstream = split_run(run, tss_index, args.split_min_count, args.sl_shadow)
+        pieces, splits, sl_upstream = split_run(run, tss_index, args.split_min_count, args.min_outron)
         for piece in pieces:
             operon_index = len(operons) if len(piece) >= args.min_genes else None
             if operon_index is not None:

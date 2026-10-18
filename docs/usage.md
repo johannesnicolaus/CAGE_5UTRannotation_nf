@@ -68,15 +68,24 @@ Before anything is changed, the pipeline checks the inputs. It stops if annotati
    - Ties prefer `nosl`.
 4. **Edit.** Exons upstream of the TSS are dropped and the first exon starts at the TSS, so the EGAPx 5' UTR is **extended or trimmed**. Gene bounds follow. CDSs are never changed.
 5. **Unchanged models.** Models without a qualifying TSS, and models open at the 5' end (EGAPx `partial`), keep the EGAPx 5' end (`tss_evidence=EGAPx`).
-6. **SL shadows.** Some non-SL peaks are leftover SL reads, not TSSs, and are ignored here and when splitting operons:
-   - a non-SL peak exactly 2 bases upstream of an SL peak (on the A of the acceptor AG), whatever its count;
-   - a non-SL peak within `--sl_shadow` (5) bases of a stronger SL peak.
+6. **SL acceptor rule.** When an SL peak passes the count filters (a "qualifying acceptor"), non-SL peaks are not TSS candidates if they are:
+   - **downstream of the acceptor**, between it and the ATG. They lie inside the mature trans-spliced mRNA, so they say nothing against trans-splicing: their 5' ends can come from capped fragments of the mature mRNA (Fejes-Toth et al. 2009 found CAGE 5' ends inside mature mRNAs) or from scatter of 5' ends;
+   - **fewer than `--min_outron` (50) bases upstream of it**, too close to start an outron.
 
-   **Osaka data.** In the Osaka cagescan run, 104 of the 142 non-SL clusters within 5 bp of an SL cluster peak exactly 2 bp upstream.
-   - **The reads have no leader:** at two such sites they align full length with no soft clip, and start with AG followed by the transcript. The leader's last two bases are …AG, so these molecules carry only the end of the leader, which matches the genomic acceptor.
-   - **They come from two libraries:** almost all of them are from DE1 and DE2, where they outnumber the SL reads, and they are absent from the EB libraries. That points to a library artefact, not a promoter.
-   - **Biology agrees:** an RNA starting at the acceptor has no outron, so it cannot be trans-spliced there (Conrad et al. 1991).
-   - **What changes:** on the O10 annotation, the rule labels 13 more mRNAs `sl` (all with an AG acceptor) and removes 30 operon splits.
+   **What an outron is.** The outron is the pre-mRNA stretch from the TSS to the trans-splice acceptor, which trans-splicing removes (Conrad et al. 1991). It must be long enough to be spliced:
+   - synthetic outrons of 51 nt or more are trans-spliced efficiently (Conrad et al. 1995);
+   - an acceptor with only 30 nt upstream was not used (Conrad et al. 1991);
+   - natural *C. elegans* outrons have a 10th percentile of 59 nt (Saito et al. 2013).
+
+   **What the zone holds in the Osaka cagescan data.**
+   - 104 non-SL clusters sit exactly 2 nt upstream of an SL peak, on the A of the acceptor AG.
+   - At the two sites inspected, their reads carry only the leader's final AG and come almost only from the DE1 and DE2 libraries.
+   - Non-SL peaks are also enriched about threefold between 6 and 60 nt upstream of acceptors, again leaning towards the DE libraries.
+
+   **Consequences.**
+   - A transcript with a qualifying SL acceptor is labelled `sl`. The SL reads, which carry the leader joined to the transcript at that base, prove that it is trans-spliced. A non-SL peak downstream of the acceptor does not make the gene non-trans-spliced.
+   - A non-SL peak `--min_outron` or more upstream is kept: it is a plausible outron start, i.e. the promoter. It is not chosen with `closest_atg`, but it can win with `--tss_selection dominant`, and it splits operons.
+   - On the O10 annotation the rule labels 183 more mRNAs `sl` (181 with an AG acceptor) and removes 219 operon splits. After it, 7% of the genes split off an operon have an SL TSS, against 20% before.
 7. **TSS at the ATG.** A TSS may sit at the ATG itself (`--utr5_min_len 0`), as SL acceptors often do. The mRNA then has no `five_prime_UTR` row but still carries the TSS attributes.
 
 ### 5' end of non-coding transcripts
@@ -120,7 +129,7 @@ When cagescan searched for several leaders (`--sl_sequence SL1=...,SL2=...`), ea
 
 1. **Genes.** Genes of `--operon_biotypes` (default `protein_coding`) are taken with their ends after UTR annotation. Genes without a `gene_biotype` count as protein-coding when they have a CDS. Genes on the other strand are ignored, so nested or interleaved genes do not interrupt an operon (as `calcOperons()` in annotationpolish).
 2. **Grouping.** A gene joins the operon of the gene before it, in transcription order, when the intergenic distance is below `--operon_max_gap` bases. The distance runs from the 3'-most end of the operon so far to the 5' end of the gene. Overlapping genes join.
-3. **Splitting.** A non-SL (`nosl`) TSS on the same strand, between the end of the previous gene and a gene's start codon, starts a new operon at that gene, however short the intergenic distance: the gene has its own promoter (as `split_operons()`). `--operon_split_min_count` sets the minimum count of such a TSS. A non-SL TSS within `--sl_shadow` (5) bases of a stronger SL TSS does not split (see below).
+3. **Splitting.** A non-SL (`nosl`) TSS on the same strand, between the end of the previous gene and a gene's start codon, starts a new operon at that gene, however short the intergenic distance: the gene has its own promoter (as `split_operons()`). `--operon_split_min_count` sets the minimum count of such a TSS. A non-SL TSS inside the acceptor zone of an SL TSS of the gene does not split (SL acceptor rule, above).
 4. **Size.** Runs of at least two genes are reported.
 
 In true operons the downstream genes are trans-spliced. The MultiQC table therefore reports:
@@ -150,8 +159,19 @@ All parameters, with defaults, are in the [parameter schema](../nextflow_schema.
 | `--operons`             | `true`        | annotate operons (genomes with SL data only)                         |
 | `--operon_max_gap`      | `500`         | same-strand genes closer than this are grouped into operons          |
 | `--operon_split_min_count` | `0`        | minimum count of a non-SL TSS that splits an operon                  |
-| `--sl_shadow`           | `5`           | non-SL TSSs this close to a stronger SL TSS are ignored (TSS choice and operon splits) |
+| `--min_outron`          | `50`          | SL acceptor rule: non-SL TSSs downstream of, or closer than this upstream of, an SL acceptor are ignored |
 | `--operon_biotypes`     | `protein_coding` | gene biotypes grouped into operons (`all` for every gene)        |
+
+## References
+
+- Conrad R, Thomas J, Spieth J, Blumenthal T (1991) Insertion of part of an intron into the 5' untranslated region of a *Caenorhabditis elegans* gene converts it into a trans-spliced gene. Mol Cell Biol 11:1921–1926. [doi:10.1128/mcb.11.4.1921-1926.1991](https://doi.org/10.1128/mcb.11.4.1921-1926.1991)
+- Conrad R, Lea K, Blumenthal T (1995) SL1 trans-splicing specified by AU-rich synthetic RNA inserted at the 5' end of *Caenorhabditis elegans* pre-mRNA. RNA 1:164–170. PMID 7585246
+- Saito TL et al. (2013) The transcription start site landscape of *C. elegans*. Genome Res 23:1348–1361. [doi:10.1101/gr.151571.112](https://doi.org/10.1101/gr.151571.112)
+- Fejes-Toth K et al. (2009) Post-transcriptional processing generates a diversity of 5'-modified long and short RNAs. Nature 457:1028–1032. [doi:10.1038/nature07759](https://doi.org/10.1038/nature07759)
+- Ganot P et al. (2004) Spliced-leader RNA trans splicing in a chordate, *Oikopleura dioica*, with a compact genome. Mol Cell Biol 24:7795–7805. [doi:10.1128/MCB.24.17.7795-7805.2004](https://doi.org/10.1128/MCB.24.17.7795-7805.2004)
+- Plessy C et al. (2024) Extreme genome scrambling in marine planktonic *Oikopleura dioica* cryptic species. Genome Res 34:426–440. [doi:10.1101/gr.278295.123](https://doi.org/10.1101/gr.278295.123)
+- Lasda EL, Blumenthal T (2011) Trans-splicing. WIREs RNA 2:417–434. [doi:10.1002/wrna.71](https://doi.org/10.1002/wrna.71)
+- Blumenthal T (2012) Trans-splicing and operons in *C. elegans*. WormBook. [doi:10.1895/wormbook.1.5.2](https://doi.org/10.1895/wormbook.1.5.2)
 
 ## Running the pipeline
 

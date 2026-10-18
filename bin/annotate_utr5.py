@@ -21,11 +21,13 @@ Coding mRNAs (models open at the 5' end are left alone):
                 which lies downstream of the outron TSS (default);
    dominant     the highest count.
    Ties prefer nosl over sl (as add_five_prime_utr() did), then the higher count.
-   A nosl peak is not a candidate (an "SL shadow") when it lies exactly 2 bases upstream
-   of an sl peak, on the A of the acceptor AG, or within --sl-shadow bases of a stronger
-   sl peak. Such peaks come from reads that start with the leader's last two bases (AG)
-   and no other leader sequence; they align to the acceptor AG and look like a TSS 2
-   bases upstream. So an SL acceptor with such a shadow stays sl.
+   SL acceptor rule: when an sl peak passes the count filters, nosl peaks
+   - downstream of it (between the acceptor and the ATG, i.e. inside the mature
+     trans-spliced mRNA), or
+   - fewer than --min-outron bases upstream of it (too close to be the start of an
+     outron, the pre-mRNA stretch that trans-splicing removes; >= ~50 nt is needed)
+   are not TSS candidates. So a transcript with a qualifying SL acceptor is sl, unless
+   --selection dominant picks a stronger nosl peak at least --min-outron bases upstream.
 4. Exons upstream of the TSS are dropped and the first exon starts at the TSS, so the
    UTR is extended or trimmed. CDS rows are never changed.
 
@@ -144,25 +146,29 @@ def coding_candidates(t, gene_id, tss_index, cds_index, max_dist, min_utr_len):
     return out
 
 
-def is_sl_shadow(pos, row, strand, nearby, shadow):
-    """True for a nosl peak on the A of an SL acceptor (2 bases upstream of an sl peak), or
-    within `shadow` bases of a stronger sl peak. `nearby`: (pos, row) within `shadow` bases."""
-    if row["tss_type"] != "nosl" or shadow <= 0:
-        return False
-    acceptor_a = pos + 2 if strand == "+" else pos - 2
-    return any(r["tss_type"] == "sl" and (p == acceptor_a or r["count"] > row["count"]) for p, r in nearby)
+def acceptor_rule(cands, min_outron, upstream_of):
+    """Drop nosl candidates inside the mature mRNA of a qualifying sl acceptor (downstream of
+    it) or fewer than `min_outron` bases upstream of it.
+
+    cands: candidates (pos, row, ...) that passed the count filters. upstream_of(a, b) is the
+    number of genomic bases by which position a lies upstream of b (negative: downstream).
+    """
+    acceptors = [c[0] for c in cands if c[1]["tss_type"] == "sl"]
+    if not acceptors:
+        return cands
+    kept = []
+    for c in cands:
+        if c[1]["tss_type"] == "nosl" and any(upstream_of(c[0], a) < min_outron for a in acceptors):
+            continue  # downstream of an acceptor (negative) or too close upstream of it
+        kept.append(c)
+    return kept
 
 
-def drop_sl_shadows(peaks, tss_index, seqid, strand, shadow):
-    """Remove nosl peaks that are SL shadows (leftover SL reads at an acceptor)."""
-    if shadow <= 0:
-        return peaks
-    return [p for p in peaks
-            if not is_sl_shadow(p[0], p[1], strand,
-                                tss_index.window(seqid, strand, p[0] - max(shadow, 2), p[0] + max(shadow, 2)), shadow)]
+def upstream_distance(strand):
+    return (lambda a, b: b - a) if strand == "+" else (lambda a, b: a - b)
 
 
-def choose_coding(peaks, selection, min_rel, min_count, rel_window_only):
+def choose_coding(peaks, selection, min_rel, min_count, rel_window_only, min_outron, strand):
     """(pos, row, utr_len) of the chosen peak, or None."""
     cands = [p for p in peaks if p[3]]
     if not cands:
@@ -170,6 +176,7 @@ def choose_coding(peaks, selection, min_rel, min_count, rel_window_only):
     reference = cands if rel_window_only else peaks
     threshold = max(min_count, min_rel * max(p[1]["count"] for p in reference))
     kept = [c for c in cands if c[1]["count"] >= threshold and c[1]["count"] > 0]
+    kept = acceptor_rule(kept, min_outron, upstream_distance(strand))
     if not kept:
         return None
     nosl_first = lambda c: 0 if c[1]["tss_type"] == "nosl" else 1
@@ -217,8 +224,9 @@ def noncoding_candidates(t, gene_id, tss_index, cds_index, max_dist, min_length)
     return out
 
 
-def choose_noncoding(cands, min_count):
+def choose_noncoding(cands, min_count, min_outron, strand):
     kept = [c for c in cands if c[1]["count"] >= min_count and c[1]["count"] > 0]
+    kept = acceptor_rule(kept, min_outron, upstream_distance(strand))
     if not kept:
         return None
     return min(kept, key=lambda c: (-c[1]["count"], abs(c[2]), 0 if c[1]["tss_type"] == "nosl" else 1))
@@ -296,8 +304,9 @@ def main():
     parser.add_argument("--nc-min-length", type=int, default=100,
                         help="minimum length left of a non-coding transcript after trimming its 5' end")
     parser.add_argument("--coding-only", action="store_true", help="leave non-coding transcripts unchanged")
-    parser.add_argument("--sl-shadow", type=int, default=5,
-                        help="nosl peaks this close to a stronger sl peak are ignored (0 to disable)")
+    parser.add_argument("--min-outron", type=int, default=50,
+                        help="nosl peaks closer than this upstream of a qualifying sl acceptor, or downstream "
+                             "of it, are not TSS candidates (0: only downstream ones are dropped)")
     args = parser.parse_args()
 
     ann = Annotation.read(args.gff)
@@ -320,8 +329,8 @@ def main():
         cds_before = [(c.start, c.end) for c in t.cds]
         old_len = t.utr_lengths()[0]
         peaks = coding_candidates(t, gene.feature.id, tss_index, cds_index, args.max_dist, args.min_utr_len)
-        pick = choose_coding(drop_sl_shadows(peaks, tss_index, t.seqid, t.strand, args.sl_shadow),
-                             args.selection, args.min_rel, args.min_count, args.rel_window_only)
+        pick = choose_coding(peaks, args.selection, args.min_rel, args.min_count, args.rel_window_only,
+                             args.min_outron, t.strand)
         if pick is None:
             st["no CAGE TSS, EGAPx kept"] += 1
             t.feature.set("tss_evidence", "EGAPx")
@@ -339,8 +348,7 @@ def main():
             st["total"] += 1
             t.others = [o for o in t.others if o.type != TSA]
             cands = noncoding_candidates(t, gene.feature.id, tss_index, cds_index, args.max_dist, args.nc_min_length)
-            pick = choose_noncoding(drop_sl_shadows(cands, tss_index, t.seqid, t.strand, args.sl_shadow),
-                                    args.min_count)
+            pick = choose_noncoding(cands, args.min_count, args.min_outron, t.strand)
             if pick is None:
                 st["no CAGE TSS, EGAPx kept"] += 1
                 t.feature.set("tss_evidence", "EGAPx")
