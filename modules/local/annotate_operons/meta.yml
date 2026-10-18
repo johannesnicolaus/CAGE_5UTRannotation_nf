@@ -1,0 +1,93 @@
+name: annotate_operons
+description: "Group closely spaced same-strand genes into operons, split before genes with a non-SL TSS"
+keywords:
+  - "operon"
+  - "spliced leader"
+  - "gff3"
+tools:
+  - python:
+      description: Python 3 script from the pipeline bin/ directory (annotate_operons.py, standard library only)
+      homepage: https://www.python.org
+      licence:
+        - "PSF-2.0"
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing annotation information
+          e.g. [ id:'I25_prim' ]
+    - gff:
+        type: file
+        description: "Annotation with CAGE 5' ends (ANNOTATE_UTR3 output)"
+        pattern: "*.gff3"
+    - tss:
+        type: file
+        description: "TSS table from CAGE_TSS_TABLE (with sl / nosl labels)"
+        pattern: "*.tss.tsv"
+output:
+  gff:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing annotation information
+            e.g. [ id:'I25_prim' ]
+      - "*.operons.gff3":
+          type: file
+          description: "Operons as GFF3 'operon' rows"
+          pattern: "*.operons.gff3"
+  bed:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing annotation information
+            e.g. [ id:'I25_prim' ]
+      - "*.operons.bed":
+          type: file
+          description: "Operons as BED6"
+          pattern: "*.operons.bed"
+  tsv:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing annotation information
+            e.g. [ id:'I25_prim' ]
+      - "*.operon_genes.tsv":
+          type: file
+          description: "Genes of candidate operons, with splits"
+          pattern: "*.operon_genes.tsv"
+  mqc:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing annotation information
+            e.g. [ id:'I25_prim' ]
+      - "*_mqc.tsv":
+          type: file
+          description: "MultiQC operon summary table"
+          pattern: "*_mqc.tsv"
+  versions_python:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - python:
+          type: string
+          description: The name of the tool
+      - python --version | sed 's/Python //':
+          type: eval
+          description: The expression to obtain the version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - python:
+          type: string
+          description: The name of the tool
+      - python --version | sed 's/Python //':
+          type: eval
+          description: The expression to obtain the version of the tool
+authors:
+  - "@johannesnicolaus"
+maintainers:
+  - "@johannesnicolaus"

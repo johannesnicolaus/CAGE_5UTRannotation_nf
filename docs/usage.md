@@ -4,51 +4,129 @@
 
 ## Introduction
 
-<!-- TODO nf-core: Add documentation about anything specific to running your pipeline. For general topics, please point to (and add to) the main nf-core website. -->
+The pipeline takes, for each genome:
+- an [EGAPx](https://github.com/ncbi/egapx) annotation (`complete.genomic.gff`);
+- the genome FASTA it was made on;
+- the results of [luscombeu/cagescan](https://github.com/johannesnicolaus/cagescan_nextflow) run on CAGE libraries against the **same genome**.
+
+The sequence names must match across the three; EGAPx keeps the names of the input genome.
 
 ## Samplesheet input
 
-You will need to create a samplesheet with information about the samples you would like to analyse before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row as shown in the examples below.
+The samplesheet is a comma-separated file with a header row and one row per genome annotation. Several genomes, for example the Okinawa, mainland and Europe assemblies, can be processed in one run.
 
 ```bash
 --input '[path to samplesheet file]'
 ```
 
-### Multiple runs of the same sample
-
-The `sample` identifiers have to be the same when you have re-sequenced the same sample more than once e.g. to increase sequencing depth. The pipeline will concatenate the raw reads before performing any downstream analysis. Below is an example for the same sample sequenced across 3 lanes:
-
 ```csv title="samplesheet.csv"
-sample,fastq_1,fastq_2
-CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
-CONTROL_REP1,AEG588A1_S1_L003_R1_001.fastq.gz,AEG588A1_S1_L003_R2_001.fastq.gz
-CONTROL_REP1,AEG588A1_S1_L004_R1_001.fastq.gz,AEG588A1_S1_L004_R2_001.fastq.gz
+id,genome,annotation,cagescan_dir
+I25_prim,/path/to/I25_primary_assembly_v1.0.0.fa,/path/to/egapx_runs/annotation_egapx/I25_prim/complete.genomic.gff,/path/to/cagescan/I25_okinawa/results
 ```
 
-### Full samplesheet
-
-The pipeline will auto-detect whether a sample is single- or paired-end using the information provided in the samplesheet. The samplesheet can have as many columns as you desire, however, there is a strict requirement for the first 3 columns to match those defined in the table below.
-
-A final samplesheet file consisting of both single- and paired-end data may look something like the one below. This is for 6 samples, where `TREATMENT_REP3` has been sequenced twice.
-
-```csv title="samplesheet.csv"
-sample,fastq_1,fastq_2
-CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
-CONTROL_REP2,AEG588A2_S2_L002_R1_001.fastq.gz,AEG588A2_S2_L002_R2_001.fastq.gz
-CONTROL_REP3,AEG588A3_S3_L002_R1_001.fastq.gz,AEG588A3_S3_L002_R2_001.fastq.gz
-TREATMENT_REP1,AEG588A4_S4_L003_R1_001.fastq.gz,
-TREATMENT_REP2,AEG588A5_S5_L003_R1_001.fastq.gz,
-TREATMENT_REP3,AEG588A6_S6_L003_R1_001.fastq.gz,
-TREATMENT_REP3,AEG588A6_S6_L004_R1_001.fastq.gz,
-```
-
-| Column    | Description                                                                                                                                                                            |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sample`  | Custom sample name. This entry will be identical for multiple sequencing libraries/runs from the same sample. Spaces in sample names are automatically converted to underscores (`_`). |
-| `fastq_1` | Full path to FastQ file for Illumina short reads 1. File has to be gzipped and have the extension ".fastq.gz" or ".fq.gz".                                                             |
-| `fastq_2` | Full path to FastQ file for Illumina short reads 2. File has to be gzipped and have the extension ".fastq.gz" or ".fq.gz".                                                             |
+| Column         | Description                                                                                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`           | Name of the annotation, used as the file name prefix of every output. Letters, digits, `_`, `-` and `.` only; each id once.                                              |
+| `genome`       | Genome FASTA (`.fa`, `.fasta` or `.fna`, optionally gzipped).                                                                                                             |
+| `annotation`   | EGAPx GFF3 (`.gff` or `.gff3`, optionally gzipped). Other GFF3 files with gene → mRNA → exon/CDS rows work too, if the CDS includes the stop codon, as in EGAPx output. |
+| `cagescan_dir` | The cagescan `--outdir`, i.e. the directory that contains `tss_clusters/`.                                                                                                |
 
 An [example samplesheet](../assets/samplesheet.csv) has been provided with the pipeline.
+
+### What is read from the cagescan results
+
+Files are taken from `tss_clusters/<set>/`, where `<set>` is `--cluster_set` (`broad`, the default, or `sharp`):
+
+- `all_samples.<set>.tss_clusters.bed`: the clusters. The dominant CTSS (`thickStart`) is the TSS position.
+- `all_samples.<set>.tss_cluster_counts.tsv`: READ1 counts per cluster and sample, summed over samples.
+- `all_samples.<set>.tss_cluster_sl_counts.tsv`: READ1s that carried the spliced leader. cagescan writes this file only when `--sl_sequence` was given and SL reads were found. Without it, every TSS is labelled `nosl`.
+
+A cluster is labelled `sl` when SL reads make up at least `--sl_min_fraction` (default 0.5) of its reads. The fraction and the SL count are kept as attributes, so TSSs used by both trans-spliced and non-trans-spliced RNAs can be found.
+
+## How UTRs are assigned
+
+Coding `mRNA`s get new 5' and 3' ends. Non-coding transcripts (lncRNAs and EGAPx misc_RNA `transcript` features) get a new 5' end only. Pseudogenes are copied unchanged.
+
+Before anything is changed, the pipeline checks the inputs. It stops if annotation sequences are missing from the genome, or if TSSs lie on sequences or positions the genome does not have; both mean cagescan was run on another assembly.
+
+### 5' end of coding mRNAs (`ANNOTATE_UTR5`)
+
+1. **Candidates.** TSS peaks on the transcript's strand qualify if:
+   - they give a 5' UTR of `--utr5_min_len` to `--tss_max_dist` bases, counted along the transcript (5' UTR exons, then the genome upstream of the EGAPx 5' end);
+   - they are not in a 5' UTR intron;
+   - the new 5' end does not overlap a CDS of another gene on the same strand.
+2. **Noise filter.** Peaks below `--tss_min_count` are dropped, and so are peaks below `--tss_min_rel` × the strongest reference peak. CAGE "exon painting" (recapping or degradation) leaves weak peaks inside exons, and these would otherwise be picked as closest to the ATG.
+   - By default the reference is every peak in the EGAPx 5' UTR, also beyond `--tss_max_dist`, plus the candidates. Without this, a weak peak near the ATG could trim a UTR whose strong TSS lies further away; such mRNAs now keep the EGAPx 5' end.
+   - `--tss_rel_whole_utr false` compares with the candidates only.
+3. **Choice.**
+   - `--tss_selection closest_atg` (default) takes the shortest UTR. In trans-spliced genes the mature 5' end is the SL acceptor, downstream of the outron TSS, so this picks the acceptor.
+   - `--tss_selection dominant` takes the highest count.
+   - Ties prefer `nosl`.
+4. **Edit.** Exons upstream of the TSS are dropped and the first exon starts at the TSS, so the EGAPx 5' UTR is **extended or trimmed**. Gene bounds follow. CDSs are never changed.
+5. **Unchanged models.** Models without a qualifying TSS, and models open at the 5' end (EGAPx `partial`), keep the EGAPx 5' end (`tss_evidence=EGAPx`).
+6. **TSS at the ATG.** A TSS may sit at the ATG itself (`--utr5_min_len 0`), as SL acceptors often do. The mRNA then has no `five_prime_UTR` row but still carries the TSS attributes.
+
+### 5' end of non-coding transcripts
+
+lncRNAs and misc_RNAs have no ATG, so the rule is different:
+- **Candidates:** peaks within `--tss_max_dist` of the EGAPx 5' end. Upstream peaks count along the genome; downstream peaks count along the exons and must leave at least 100 bases of transcript. The same intron and CDS rules apply.
+- **Choice:** the peak with the highest count, with ties going to the smallest move.
+- **Labels:** `tss_type`, the acceptor row and the AG check work as for mRNAs.
+- **Switch:** `--tss_noncoding false` leaves non-coding transcripts unchanged.
+
+### 3' end (`ANNOTATE_UTR3`)
+
+The first rule that applies sets the 3' end:
+
+1. **`polyA_reads`.** EGAPx marked the model `experiment=COORDINATES: polyA evidence`: RNA-seq reads that contain the poly(A) tail mapped the cleavage site. The EGAPx end is kept. Switch this off with `--keep_polya_evidence false`.
+2. **`PAS`.** A polyadenylation signal (`--pas_motifs`, default `AATAAA`) on the transcript's strand qualifies if it:
+   - lies after the stop codon;
+   - is within `--pas_window` bases of the EGAPx 3' end, measured along the transcript;
+   - is not in a 3' UTR intron;
+   - does not reach a CDS of another gene on the same strand;
+   - does not extend the transcript into another gene's transcript on the same strand. In operons, the 3' end stops before the next gene's 5' end, which the 5' step has already set. Overlaps already present in EGAPx are left alone.
+
+   The motif **closest to the EGAPx end** is used, so short-read coverage places the end and the motif sets the base. The new end is the motif end + `--pas_offset`; cleavage is usually 10-30 nt downstream of AATAAA. The 3' UTR is trimmed or extended.
+3. **`EGAPx`.** No signal qualified, and the EGAPx 3' end is kept.
+
+The *O. dioica* genome is AT-rich, so AATAAA also occurs by chance. `utr3_evidence` and the UTR statistics show how many ends each rule set.
+
+## Operons (`ANNOTATE_OPERONS`)
+
+Operons are annotated only for genomes whose cagescan results include spliced-leader counts, i.e. cagescan was run with `--sl_sequence` and found SL reads. Genomes without SL trans-splicing get UTRs but no operons. `--skip_operons` switches the step off for every genome.
+
+1. **Genes.** Genes of `--operon_biotypes` (default `protein_coding`) are taken with their ends after UTR annotation. Genes without a `gene_biotype` count as protein-coding when they have a CDS. Genes on the other strand are ignored, so nested or interleaved genes do not interrupt an operon (as `calcOperons()` in annotationpolish).
+2. **Grouping.** A gene joins the operon of the gene before it, in transcription order, when the intergenic distance is below `--operon_max_gap` bases. The distance runs from the 3'-most end of the operon so far to the 5' end of the gene. Overlapping genes join.
+3. **Splitting.** A non-SL (`nosl`) TSS on the same strand, between the end of the previous gene and a gene's start codon, starts a new operon at that gene, however short the intergenic distance: the gene has its own promoter (as `split_operons()`). `--operon_split_min_count` sets the minimum count of such a TSS.
+4. **Size.** Runs of at least two genes are reported.
+
+In true operons the downstream genes are trans-spliced. The MultiQC table therefore reports:
+- the share of downstream genes with an SL TSS between them and the previous gene;
+- the same share for the genes that were split off.
+
+## Parameters
+
+All parameters, with defaults, are in the [parameter schema](../nextflow_schema.json) (`nextflow run luscombeu/utrannotation --help`). The main ones:
+
+| Parameter               | Default       | Meaning                                                              |
+| ----------------------- | ------------- | -------------------------------------------------------------------- |
+| `--cluster_set`         | `broad`       | cagescan cluster set (`broad` or `sharp`)                            |
+| `--tss_max_dist`        | `500`         | maximum 5' UTR length (non-coding: maximum 5' end move), along the transcript |
+| `--tss_selection`       | `closest_atg` | `closest_atg` or `dominant`                                          |
+| `--tss_min_rel`         | `0.1`         | minimum count relative to the strongest TSS (see `--tss_rel_whole_utr`) |
+| `--tss_rel_whole_utr`   | `true`        | reference for `--tss_min_rel`: the whole EGAPx 5' UTR, not only the window |
+| `--tss_noncoding`       | `true`        | also move the 5' end of lncRNAs and misc_RNAs                        |
+| `--tss_min_count`       | `0`           | minimum pooled TSS count                                             |
+| `--utr5_min_len`        | `0`           | minimum 5' UTR length (0: a TSS at the ATG is allowed)               |
+| `--sl_min_fraction`     | `0.5`         | minimum SL read fraction for `tss_type=sl`                           |
+| `--keep_polya_evidence` | `true`        | keep EGAPx 3' ends supported by poly(A) reads                        |
+| `--pas_motifs`          | `AATAAA`      | comma-separated polyadenylation-signal motifs                        |
+| `--pas_window`          | `500`         | maximum distance of the signal from the EGAPx 3' end                 |
+| `--pas_offset`          | `0`           | bases from the motif end to the 3' end                               |
+| `--skip_operons`        | `false`       | do not annotate operons                                              |
+| `--operon_max_gap`      | `500`         | same-strand genes closer than this are grouped into operons          |
+| `--operon_split_min_count` | `0`        | minimum count of a non-SL TSS that splits an operon                  |
+| `--operon_biotypes`     | `protein_coding` | gene biotypes grouped into operons (`all` for every gene)        |
 
 ## Running the pipeline
 

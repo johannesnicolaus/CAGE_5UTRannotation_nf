@@ -7,6 +7,32 @@
 ----------------------------------------------------------------------------------------
 */
 
+//
+// Typed declarations of the boolean and numeric parameters (defaults: nextflow.config). From Nextflow 26.04
+// command-line values arrive as strings unless declared with a type here ('--flag false' would be truthy).
+//
+params {
+    tss_max_dist        : Integer = 500
+    tss_min_rel         : Float   = 0.1
+    tss_rel_whole_utr   : Boolean = true
+    tss_noncoding       : Boolean = true
+    tss_min_count       : Float   = 0.0
+    utr5_min_len        : Integer = 0
+    sl_min_fraction     : Float   = 0.5
+    keep_polya_evidence : Boolean = true
+    pas_window          : Integer = 500
+    pas_offset          : Integer = 0
+    skip_operons        : Boolean = false
+    operon_max_gap      : Integer = 500
+    operon_split_min_count : Float = 0.0
+    version             : Boolean = false
+    plaintext_email     : Boolean = false
+    monochrome_logs     : Boolean = false
+    validate_params     : Boolean = true
+    help_full           : Boolean = false
+    show_hidden         : Boolean = false
+}
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS / WORKFLOWS

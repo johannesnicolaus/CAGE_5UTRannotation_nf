@@ -10,7 +10,10 @@
             "type": "object",
             "fa_icon": "fas fa-terminal",
             "description": "Define where the pipeline should find input data and save output data.",
-            "required": ["input", "outdir"],
+            "required": [
+                "input",
+                "outdir"
+            ],
             "properties": {
                 "input": {
                     "type": "string",
@@ -19,9 +22,19 @@
                     "schema": "assets/schema_input.json",
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
-                    "description": "Path to comma-separated file containing information about the samples in the experiment.",
-                    "help_text": "You will need to create a design file with information about the samples in your experiment before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row.",
+                    "description": "Path to comma-separated file with one row per genome annotation.",
+                    "help_text": "A comma-separated file with a header row and one row per genome annotation, with the columns `id`, `genome` (FASTA), `annotation` (EGAPx GFF3) and `cagescan_dir` (a luscombeu/cagescan results directory for the same genome). See the usage docs.",
                     "fa_icon": "fas fa-file-csv"
+                },
+                "cluster_set": {
+                    "type": "string",
+                    "default": "broad",
+                    "enum": [
+                        "broad",
+                        "sharp"
+                    ],
+                    "description": "cagescan TSS cluster set to use: `broad` (pooled paraclu) or `sharp` (RECLU, reproducible across replicates).",
+                    "fa_icon": "fas fa-layer-group"
                 },
                 "outdir": {
                     "type": "string",
@@ -40,6 +53,144 @@
                     "type": "string",
                     "description": "MultiQC report title. Printed as page header, used for filename if not otherwise specified.",
                     "fa_icon": "fas fa-file-signature"
+                }
+            }
+        },
+        "utr5_options": {
+            "title": "5' UTR options",
+            "type": "object",
+            "fa_icon": "fas fa-arrow-right",
+            "description": "Choice of the CAGE TSS that becomes the 5' end of each transcript (5' UTR of coding mRNAs).",
+            "properties": {
+                "tss_max_dist": {
+                    "type": "integer",
+                    "default": 500,
+                    "minimum": 1,
+                    "description": "Maximum 5' UTR length of coding mRNAs, and maximum 5' end move of non-coding transcripts, in bases along the transcript.",
+                    "fa_icon": "fas fa-ruler-horizontal"
+                },
+                "tss_selection": {
+                    "type": "string",
+                    "default": "closest_atg",
+                    "enum": [
+                        "closest_atg",
+                        "dominant"
+                    ],
+                    "description": "Which qualifying TSS to use: the one closest to the ATG (shortest 5' UTR) or the one with the highest count.",
+                    "help_text": "`closest_atg` picks the spliced-leader acceptor of trans-spliced genes, which lies downstream of the outron TSS. `dominant` picks the strongest peak in the window.",
+                    "fa_icon": "fas fa-hand-pointer"
+                },
+                "tss_min_rel": {
+                    "type": "number",
+                    "default": 0.1,
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Minimum TSS count relative to the strongest TSS in the window, to ignore weak exonic CAGE peaks.",
+                    "fa_icon": "fas fa-percent"
+                },
+                "tss_rel_whole_utr": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Compare `--tss_min_rel` with the strongest TSS anywhere in the EGAPx 5' UTR (also beyond `--tss_max_dist`), not only within the window.",
+                    "help_text": "With the default, a weak peak near the ATG cannot trim a 5' UTR whose strong TSS lies further away than `--tss_max_dist`; such mRNAs keep the EGAPx 5' end. Set to false to compare only with the peaks within `--tss_max_dist`.",
+                    "fa_icon": "fas fa-expand"
+                },
+                "tss_min_count": {
+                    "type": "number",
+                    "default": 0,
+                    "minimum": 0,
+                    "description": "Minimum pooled CAGE count of a TSS (summed over samples).",
+                    "fa_icon": "fas fa-filter"
+                },
+                "utr5_min_len": {
+                    "type": "integer",
+                    "default": 0,
+                    "minimum": 0,
+                    "description": "Minimum 5' UTR length of a TSS. 0 accepts a TSS at the ATG, as at spliced-leader acceptors next to the start codon.",
+                    "fa_icon": "fas fa-ruler"
+                },
+                "sl_min_fraction": {
+                    "type": "number",
+                    "default": 0.5,
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Minimum fraction of spliced-leader READ1s for a TSS to be labelled `sl` instead of `nosl`.",
+                    "fa_icon": "fas fa-tag"
+                },
+                "tss_noncoding": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Also move the 5' end of lncRNAs and other non-coding transcripts (EGAPx misc_RNA) to the strongest CAGE TSS within `--tss_max_dist` of their EGAPx 5' end.",
+                    "fa_icon": "fas fa-scroll"
+                }
+            }
+        },
+        "utr3_options": {
+            "title": "3' UTR options",
+            "type": "object",
+            "fa_icon": "fas fa-arrow-left",
+            "description": "Evidence used to set the 3' end of each coding mRNA.",
+            "properties": {
+                "keep_polya_evidence": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Keep the EGAPx 3' end of models supported by poly(A)-tail reads (`experiment=COORDINATES: polyA evidence`).",
+                    "fa_icon": "fas fa-lock"
+                },
+                "pas_motifs": {
+                    "type": "string",
+                    "default": "AATAAA",
+                    "pattern": "^[ACGTacgt]+(,[ACGTacgt]+)*$",
+                    "description": "Comma-separated polyadenylation-signal motifs (DNA, RNA sense).",
+                    "fa_icon": "fas fa-dna"
+                },
+                "pas_window": {
+                    "type": "integer",
+                    "default": 500,
+                    "minimum": 1,
+                    "description": "Maximum distance of the polyadenylation signal from the EGAPx 3' end, in bases along the transcript.",
+                    "fa_icon": "fas fa-ruler-horizontal"
+                },
+                "pas_offset": {
+                    "type": "integer",
+                    "default": 0,
+                    "minimum": 0,
+                    "description": "Bases from the end of the motif to the new 3' end (cleavage is ~10-30 nt downstream of AATAAA).",
+                    "fa_icon": "fas fa-arrows-alt-h"
+                }
+            }
+        },
+        "operon_options": {
+            "title": "Operon options",
+            "type": "object",
+            "fa_icon": "fas fa-link",
+            "description": "Operons: runs of closely spaced same-strand genes, split before genes with a non-SL TSS. Run only for genomes whose cagescan results include spliced-leader counts.",
+            "properties": {
+                "skip_operons": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Do not annotate operons.",
+                    "fa_icon": "fas fa-forward"
+                },
+                "operon_max_gap": {
+                    "type": "integer",
+                    "default": 500,
+                    "minimum": 0,
+                    "description": "Same-strand genes closer than this (intergenic bases, after UTR annotation) are grouped into one operon.",
+                    "fa_icon": "fas fa-ruler-horizontal"
+                },
+                "operon_split_min_count": {
+                    "type": "number",
+                    "default": 0,
+                    "minimum": 0,
+                    "description": "Minimum pooled count of a non-SL TSS that splits an operon before the downstream gene.",
+                    "fa_icon": "fas fa-cut"
+                },
+                "operon_biotypes": {
+                    "type": "string",
+                    "default": "protein_coding",
+                    "description": "Comma-separated gene_biotype values of the genes grouped into operons, or `all`.",
+                    "fa_icon": "fas fa-filter"
                 }
             }
         },
@@ -110,7 +261,14 @@
                     "description": "Method used to save pipeline results to output directory.",
                     "help_text": "The Nextflow `publishDir` option specifies which intermediate files should be saved to the output directory. This option tells the pipeline what method should be used to move these files. See [Nextflow docs](https://www.nextflow.io/docs/latest/process.html#publishdir) for details.",
                     "fa_icon": "fas fa-copy",
-                    "enum": ["symlink", "rellink", "link", "copy", "copyNoFollow", "move"],
+                    "enum": [
+                        "symlink",
+                        "rellink",
+                        "link",
+                        "copy",
+                        "copyNoFollow",
+                        "move"
+                    ],
                     "hidden": true
                 },
                 "email_on_fail": {
@@ -180,7 +338,10 @@
                     "hidden": true
                 },
                 "help": {
-                    "type": ["boolean", "string"],
+                    "type": [
+                        "boolean",
+                        "string"
+                    ],
                     "description": "Display the help message."
                 },
                 "help_full": {
@@ -197,6 +358,15 @@
     "allOf": [
         {
             "$ref": "#/$defs/input_output_options"
+        },
+        {
+            "$ref": "#/$defs/utr5_options"
+        },
+        {
+            "$ref": "#/$defs/utr3_options"
+        },
+        {
+            "$ref": "#/$defs/operon_options"
         },
         {
             "$ref": "#/$defs/institutional_config_options"
