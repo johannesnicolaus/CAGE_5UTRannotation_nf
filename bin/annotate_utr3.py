@@ -119,7 +119,7 @@ def main():
     parser.add_argument("--pas", required=True, help="BED6 from scan_pas.py")
     parser.add_argument("--output", required=True)
     parser.add_argument("--window", type=int, default=500, help="maximum distance of the PAS from the EGAPx 3' end")
-    parser.add_argument("--offset", type=int, default=0, help="bases from the motif end to the 3' end")
+    parser.add_argument("--offset", type=int, default=15, help="bases from the motif end to the 3' end")
     parser.add_argument("--no-keep-polya-evidence", dest="keep_polya", action="store_false",
                         help="also move 3' ends that EGAPx supports with poly(A) reads")
     args = parser.parse_args()

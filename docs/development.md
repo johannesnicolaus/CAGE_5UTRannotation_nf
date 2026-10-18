@@ -16,6 +16,8 @@ The pipeline code is complete, but it has **not been run yet**. The test data ar
   - Operons: 2,496, with 43% of genes. Compared with the v1.3 operons, 84% of operonic genes are shared and 1,504 gene sets are identical.
   - The MultiQC length plots were not parsed (numeric first bin label); fixed afterwards.
 
+- 2026-10-18, I69 EGAPx with the Okinawa CAGEr consensus clusters: `utrannotation_runs/oki_I69_egapx` (repackaged as cagescan output) and `oki_I69_egapx_bed` (BED input). Both completed with identical results. Also an O10 rerun with the new defaults. See rationale.md, section 10.
+
 ## Test data to add
 
 A small, self-contained data set:

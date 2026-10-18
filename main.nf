@@ -23,10 +23,11 @@ params {
     sl_window_down      : Integer = 5
     keep_polya_evidence : Boolean = true
     pas_window          : Integer = 500
-    pas_offset          : Integer = 0
+    pas_offset          : Integer = 15
     trans_splicing      : Boolean = true
     operons             : Boolean = true
     operon_max_gap      : Integer = 500
+    operon_max_gap_tx   : Integer = 100
     operon_split_min_count : Float = 0.0
     version             : Boolean = false
     plaintext_email     : Boolean = false

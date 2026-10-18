@@ -1,5 +1,5 @@
 name: cage_tss_table
-description: "Combine cagescan TSS clusters, counts and spliced-leader counts into one TSS table labelled sl / nosl"
+description: "Turn CAGE TSS clusters (luscombeu/cagescan results, or BED files from any CAGE workflow) into one TSS table labelled sl / nosl"
 keywords:
   - "cage"
   - "tss"
@@ -19,11 +19,11 @@ input:
           e.g. [ id:'I25_prim' ]
     - clusters:
         type: file
-        description: "cagescan all_samples.<set>.tss_clusters.bed (BED9, thickStart = dominant CTSS)"
+        description: "TSS clusters: cagescan all_samples.<set>.tss_clusters.bed (BED9, thickStart = dominant CTSS), or a BED6+ of non-SL clusters (BED mode)"
         pattern: "*.bed"
     - counts:
         type: file
-        description: "cagescan all_samples.<set>.tss_cluster_counts.tsv"
+        description: "cagescan all_samples.<set>.tss_cluster_counts.tsv, or [] in BED mode (the BED score is the count)"
         pattern: "*.tsv"
     - sl_counts:
         type: file
@@ -33,6 +33,10 @@ input:
         type: file
         description: "cagescan all_samples.<set>.tss_cluster_sl_leaders.tsv (several leaders only), or []"
         pattern: "*.tsv"
+    - sl_bed:
+        type: file
+        description: "BED mode: SL trans-splice acceptor clusters (BED6+), or []"
+        pattern: "*.bed"
 output:
   tsv:
     - - meta:

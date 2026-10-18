@@ -19,6 +19,9 @@ Initial release of luscombeu/utrannotation, created with the [nf-core](https://n
 - Input checks: annotation sequences must be in the genome, and TSSs must lie on genome sequences.
 - `--trans_splicing` and `--operons` switches; `sl_leader` attribute when cagescan searched for several leaders; coding transcripts are any transcripts with a CDS (not only EGAPx `mRNA`), so AUGUSTUS-style GFF3 works too.
 - SL acceptor rule (`--sl_window_up`, `--sl_window_down`, default 5): non-SL TSSs within 5 bp of a qualifying SL acceptor are ignored for the TSS choice and operon splits (SL reads without a recognisable leader). A transcript whose chosen TSS is non-SL but that also has a qualifying SL acceptor records it (`sl_acceptor_peak`, `sl_acceptor_count`).
+- Defaults for metazoans in general: `--tss_selection auto` (strongest mature-mRNA 5' end), `--pas_motifs AATAAA,ATTAAA`, `--pas_offset 15`; `nosl_tss_peak` / `nosl_tss_count` record the non-SL TSS of SL transcripts.
+- TSS input from any CAGE workflow: samplesheet `tss` (cagescan directory or BED) and `tss_sl` (BED of SL acceptor clusters) replace `cagescan_dir`.
+- Operon gaps between codons by default (`--operon_gap_from cds`), with `transcript` and `evidence` modes (`--operon_max_gap_tx`).
 - Operons (`ANNOTATE_OPERONS`) for genomes with spliced-leader CAGE data. Same-strand genes closer than `--operon_max_gap` (500, as in Plessy et al. 2024) are grouped, and a gene with its own non-SL TSS starts a new operon. On OKI2018_I69 with the Okinawa CAGE clusters, this recovers the Ganot et al. 2004 cyclin D3 operon (XPO7/RBP16, DYNLL2, TUBD1, MBF1, CYCDC) with the POC5 leader and IQCK, for maximum gaps from 100 to 750 bp.
 
 ### `Fixed`

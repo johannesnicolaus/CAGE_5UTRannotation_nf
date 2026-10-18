@@ -28,7 +28,7 @@ include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_utra
 workflow UTRANNOTATION {
 
     take:
-    ch_samplesheet // channel: [ meta, genome, annotation, cagescan_dir ]
+    ch_samplesheet // channel: [ meta, genome, annotation, tss, tss_sl ]
     multiqc_config
     multiqc_logo
     multiqc_methods_description
@@ -77,7 +77,7 @@ workflow UTRANNOTATION {
     // MODULE: operons (--operons), only for genomes with spliced-leader data: eukaryotic operons
     // depend on SL trans-splicing, and without SL labels every TSS is nosl and would split every operon
     //
-    def ch_has_sl = PREPARE_INPUTS.out.cage.map { meta, _clusters, _counts, sl_counts, _leaders -> [ meta, sl_counts ? true : false ] }
+    def ch_has_sl = PREPARE_INPUTS.out.cage.map { meta, _clusters, _counts, sl_counts, _leaders, sl_bed -> [ meta, (sl_counts || sl_bed) ? true : false ] }
     ANNOTATE_OPERONS(
         ch_utr_gff
             .join(CAGE_TSS_TABLE.out.tsv, failOnMismatch: true)

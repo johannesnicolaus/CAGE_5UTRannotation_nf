@@ -149,7 +149,7 @@ workflow PIPELINE_COMPLETION {
 */
 
 //
-// Validate the samplesheet rows: [ meta, genome, annotation, cagescan_dir ], one per annotation
+// Validate the samplesheet rows: [ meta, genome, annotation, tss, tss_sl ], one per annotation
 //
 def validateInputSamplesheet(rows) {
     def duplicated = rows.collect { row -> row[0].id }.countBy { id -> id }.findAll { _id, n -> n > 1 }.keySet()

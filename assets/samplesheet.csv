@@ -1,2 +1,3 @@
-id,genome,annotation,cagescan_dir
-I25_prim,/path/to/I25_primary_assembly_v1.0.0.fa,/path/to/egapx/I25_prim/complete.genomic.gff,/path/to/cagescan/I25_okinawa/results
+id,genome,annotation,tss,tss_sl
+I25_prim,/path/to/I25_primary_assembly_v1.0.0.fa,/path/to/egapx/I25_prim/complete.genomic.gff,/path/to/cagescan/I25_okinawa/results,
+other_species,/path/to/genome.fa,/path/to/complete.genomic.gff,/path/to/tss_clusters.bed,/path/to/sl_acceptor_clusters.bed

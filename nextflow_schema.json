@@ -23,7 +23,7 @@
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
                     "description": "Path to comma-separated file with one row per genome annotation.",
-                    "help_text": "A comma-separated file with a header row and one row per genome annotation, with the columns `id`, `genome` (FASTA), `annotation` (EGAPx GFF3) and `cagescan_dir` (a luscombeu/cagescan results directory for the same genome). See the usage docs.",
+                    "help_text": "A comma-separated file with a header row and one row per genome annotation, with the columns `id`, `genome` (FASTA), `annotation` (EGAPx GFF3), `tss` (a luscombeu/cagescan results directory, or a BED file of TSS clusters from any CAGE workflow) and, for BED input, an optional `tss_sl` (BED of spliced-leader acceptor clusters). See the usage docs.",
                     "fa_icon": "fas fa-file-csv"
                 },
                 "cluster_set": {
@@ -33,7 +33,7 @@
                         "broad",
                         "sharp"
                     ],
-                    "description": "cagescan TSS cluster set to use: `broad` (pooled paraclu) or `sharp` (RECLU, reproducible across replicates).",
+                    "description": "cagescan TSS cluster set to use (cagescan input only): `broad` (CAGEfightR or paraclu) or `sharp` (RECLU, reproducible across replicates).",
                     "fa_icon": "fas fa-layer-group"
                 },
                 "outdir": {
@@ -71,13 +71,14 @@
                 },
                 "tss_selection": {
                     "type": "string",
-                    "default": "closest_atg",
+                    "default": "auto",
                     "enum": [
+                        "auto",
                         "closest_atg",
                         "dominant"
                     ],
-                    "description": "Which qualifying TSS to use: the one closest to the ATG (shortest 5' UTR) or the one with the highest count.",
-                    "help_text": "`closest_atg` picks the spliced-leader acceptor of trans-spliced genes, which lies downstream of the outron TSS. `dominant` picks the strongest peak in the window.",
+                    "description": "Which qualifying TSS to use. `auto`: the strongest mature-mRNA 5' end (SL acceptors, and non-SL TSSs not upstream of an acceptor); `closest_atg`: the shortest 5' UTR; `dominant`: the highest count.",
+                    "help_text": "`auto` suits metazoans with or without trans-splicing: without SL data it is the dominant TSS (the CAGE convention); with SL data a non-SL peak upstream of an SL acceptor, which may be the start of the outron (short-lived pre-mRNA), cannot win. See docs/rationale.md.",
                     "fa_icon": "fas fa-hand-pointer"
                 },
                 "tss_min_rel": {
@@ -155,9 +156,9 @@
                 },
                 "pas_motifs": {
                     "type": "string",
-                    "default": "AATAAA",
+                    "default": "AATAAA,ATTAAA",
                     "pattern": "^[ACGTacgt]+(,[ACGTacgt]+)*$",
-                    "description": "Comma-separated polyadenylation-signal motifs (DNA, RNA sense).",
+                    "description": "Comma-separated polyadenylation-signal motifs (DNA, RNA sense). AATAAA and ATTAAA are the two most common metazoan signals (~53-58% and ~15-17% of human polyA sites).",
                     "fa_icon": "fas fa-dna"
                 },
                 "pas_window": {
@@ -169,9 +170,9 @@
                 },
                 "pas_offset": {
                     "type": "integer",
-                    "default": 0,
+                    "default": 15,
                     "minimum": 0,
-                    "description": "Bases from the end of the motif to the new 3' end (cleavage is ~10-30 nt downstream of AATAAA).",
+                    "description": "Bases from the motif end to the new 3' end. The signal lies within ~40 nt upstream of the cleavage site (Tian & Graber 2012); 15 is a typical spacing.",
                     "fa_icon": "fas fa-arrows-alt-h"
                 }
             }
@@ -196,11 +197,32 @@
                     "help_text": "Eukaryotic operons depend on SL trans-splicing, but trans-splicing does not imply operons: in many trans-splicing animals most SL genes are monocistronic. Operons are never annotated for genomes without SL counts.",
                     "fa_icon": "fas fa-link"
                 },
+                "operon_gap_from": {
+                    "type": "string",
+                    "default": "cds",
+                    "enum": [
+                        "cds",
+                        "transcript",
+                        "evidence"
+                    ],
+                    "description": "How intergenic distances are measured: `cds` (stop codon to start codon), `transcript` (transcript ends) or `evidence` (transcript ends when the upstream 3' end is supported by PAS or poly(A) reads and the downstream 5' end by CAGE, otherwise CDS).",
+                    "help_text": "Transcript-end distances would be the true intercistronic regions, but annotated UTR ends are imprecise; on I69 EGAPx and O10 they gave less SL-consistent operons than `cds`.",
+                    "fa_icon": "fas fa-ruler-combined"
+                },
                 "operon_max_gap": {
                     "type": "integer",
                     "default": 500,
                     "minimum": 0,
-                    "description": "Same-strand genes closer than this (intergenic bases, after UTR annotation) are grouped into one operon.",
+                    "description": "Same-strand genes whose stop-to-start codon distance is below this join an operon (CDS distances; also the fallback of `--operon_gap_from evidence`).",
+                    "fa_icon": "fas fa-ruler-horizontal",
+                    "help_text": "500 is Plessy et al. 2024's definition (gene models without UTRs). On the I69 EGAPx and O10 annotations, CDS windows of 400-500 gave the most SL-consistent operons and 500 is the smallest window that keeps the Ganot et al. 2004 cyclin D3 operon whole; see docs/rationale.md."
+                },
+                "operon_max_gap_tx": {
+                    "type": "integer",
+                    "default": 100,
+                    "minimum": 0,
+                    "description": "With `--operon_gap_from transcript` or `evidence`: distances between transcript ends below this join genes.",
+                    "help_text": "On I69 EGAPx, 96-97% of CAGE-supported downstream genes 0-60 nt from the previous transcript start at an SL acceptor, 86% at 61-100 nt and 65% at 101-200 nt; O. dioica intercistronic regions are 23-30 nt (Ganot et al. 2004) and C. elegans operon genes are ~100 bp apart (Blumenthal et al. 2015).",
                     "fa_icon": "fas fa-ruler-horizontal"
                 },
                 "operon_split_min_count": {

@@ -29,19 +29,26 @@
                 "pattern": "^\\S+\\.gff3?(\\.gz)?$",
                 "errorMessage": "Annotation must be an EGAPx-style GFF3 ending in .gff or .gff3 (optionally .gz), without spaces"
             },
-            "cagescan_dir": {
+            "tss": {
                 "type": "string",
-                "format": "directory-path",
+                "format": "path",
                 "exists": true,
                 "pattern": "^\\S+$",
-                "errorMessage": "cagescan_dir must be an existing luscombeu/cagescan results directory (the one containing tss_clusters/), without spaces"
+                "errorMessage": "tss must be an existing luscombeu/cagescan results directory (containing tss_clusters/) or a BED file of TSS clusters, without spaces"
+            },
+            "tss_sl": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+\\.bed(\\.gz)?$",
+                "errorMessage": "tss_sl must be a BED file of SL trans-splice acceptor clusters (only with BED input in tss)"
             }
         },
         "required": [
             "id",
             "genome",
             "annotation",
-            "cagescan_dir"
+            "tss"
         ]
     }
 }

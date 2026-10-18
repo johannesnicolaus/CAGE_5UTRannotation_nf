@@ -14,7 +14,7 @@
 
 ## Introduction
 
-**luscombeu/utrannotation** adds UTRs to [EGAPx](https://github.com/ncbi/egapx) genome annotations. It uses CAGE TSS clusters from [luscombeu/cagescan](https://github.com/johannesnicolaus/cagescan_nextflow) for the 5' ends and polyadenylation evidence for the 3' ends. It was written for *Oikopleura dioica*, where a large share of genes are trans-spliced to a spliced leader (SL) and genes are tightly packed.
+**luscombeu/utrannotation** adds UTRs to [EGAPx](https://github.com/ncbi/egapx) genome annotations. It uses CAGE TSS clusters for the 5' ends: the results of [luscombeu/cagescan](https://github.com/johannesnicolaus/cagescan_nextflow), or BED files of TSS clusters from any CAGE workflow, single- or paired-end and polyadenylation evidence for the 3' ends. It was written for *Oikopleura dioica*, where a large share of genes are trans-spliced to a spliced leader (SL) and genes are tightly packed.
 
 EGAPx models carry no TSS or trans-splicing information. Without long reads, their UTRs come from short-read coverage only and are often over-extended. For each coding mRNA, the pipeline does the following:
 
@@ -38,7 +38,7 @@ Other code it builds on:
 
 Steps:
 
-1. Uncompress the inputs and find the TSS cluster files in the cagescan results directory.
+1. Uncompress the inputs and collect the TSS clusters (cagescan results or BED files).
 2. Build a TSS table with SL labels (`CAGE_TSS_TABLE`).
 3. Scan the genome for polyadenylation signals (`SCAN_PAS`).
 4. Annotate 5' UTRs (`ANNOTATE_UTR5`), then 3' UTRs (`ANNOTATE_UTR3`), then operons (`ANNOTATE_OPERONS`).
@@ -51,18 +51,21 @@ Steps:
 > [!NOTE]
 > If you are new to Nextflow and nf-core, please refer to [this page](https://nf-co.re/docs/get_started/environment_setup/overview) on how to set-up Nextflow.
 
-First, run [luscombeu/cagescan](https://github.com/johannesnicolaus/cagescan_nextflow) on the CAGE libraries against the **same genome** as the annotation. To get SL labels, pass `--sl_sequence` for organisms with trans-splicing.
+First, process the CAGE libraries against the **same genome** as the annotation. There are two routes:
+- run [luscombeu/cagescan](https://github.com/johannesnicolaus/cagescan_nextflow), with `--sl_sequence` for organisms with trans-splicing;
+- use TSS clusters from any CAGE workflow (e.g. nf-core/cageseq, CAGEr, CAGEfightR) as BED files. If the organism has trans-splicing, give a second BED of spliced-leader (trans-splice acceptor) clusters.
 
 Then prepare a samplesheet with one row per genome annotation:
 
 `samplesheet.csv`:
 
 ```csv
-id,genome,annotation,cagescan_dir
-I25_prim,I25_primary_assembly_v1.0.0.fa,egapx/I25_prim/complete.genomic.gff,cagescan/I25_okinawa/results
+id,genome,annotation,tss,tss_sl
+I25_prim,I25_primary_assembly_v1.0.0.fa,egapx/I25_prim/complete.genomic.gff,cagescan/I25_okinawa/results,
+other,genome.fa,egapx/other/complete.genomic.gff,cage/tss_clusters.bed,cage/sl_acceptor_clusters.bed
 ```
 
-`cagescan_dir` is the cagescan `--outdir`, the directory that contains `tss_clusters/`.
+`tss` is either the cagescan `--outdir` (the directory that contains `tss_clusters/`) or a BED file of TSS clusters. `tss_sl` (optional, BED input only) holds the SL acceptor clusters.
 
 Now, you can run the pipeline using:
 

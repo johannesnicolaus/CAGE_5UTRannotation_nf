@@ -1,6 +1,6 @@
 //
-// Uncompress the genome and annotation if needed, and find the TSS cluster files in a
-// luscombeu/cagescan results directory.
+// Uncompress the genome and annotation if needed, and collect the TSS cluster files: either
+// a luscombeu/cagescan results directory, or BED files of TSS clusters from any CAGE workflow.
 //
 
 include { GUNZIP } from '../../../modules/nf-core/gunzip/main'
@@ -8,7 +8,7 @@ include { GUNZIP } from '../../../modules/nf-core/gunzip/main'
 workflow PREPARE_INPUTS {
 
     take:
-    ch_samplesheet // channel: [ meta, genome, annotation, cagescan_dir ]
+    ch_samplesheet // channel: [ meta, genome, annotation, tss, tss_sl ]
     cluster_set    // string: 'broad' or 'sharp'
     trans_splicing // boolean: use the spliced-leader counts when present
 
@@ -18,7 +18,7 @@ workflow PREPARE_INPUTS {
     // Genome and annotation: gunzip the compressed ones (one GUNZIP call for both kinds)
     //
     def ch_files = ch_samplesheet
-        .flatMap { meta, genome, annotation, _cagescan_dir ->
+        .flatMap { meta, genome, annotation, _tss, _tss_sl ->
             [
                 [ meta + [ file_type: 'genome' ], genome ],
                 [ meta + [ file_type: 'annotation' ], annotation ],
@@ -42,16 +42,35 @@ workflow PREPARE_INPUTS {
     def ch_gff   = ch_uncompressed.annotation.map { meta, f -> [ meta - meta.subMap('file_type'), f ] }
 
     //
-    // cagescan outputs: TSS clusters, counts and (only for datasets with a spliced leader) SL counts
+    // TSS clusters: a cagescan results directory (clusters, counts, SL counts when the dataset
+    // has a spliced leader) or BED files (non-SL clusters, optional SL acceptor clusters)
     //
-    def ch_cage = ch_samplesheet.map { meta, _genome, _annotation, cagescan_dir ->
-        cagescanTssFiles(meta, cagescan_dir, cluster_set, trans_splicing)
+    def ch_cage = ch_samplesheet.map { meta, _genome, _annotation, tss, tss_sl ->
+        tssInputFiles(meta, tss, tss_sl, cluster_set, trans_splicing)
     }
 
     emit:
     fasta = ch_fasta // channel: [ meta, fasta ]
     gff   = ch_gff   // channel: [ meta, gff ]
-    cage  = ch_cage  // channel: [ meta, tss_clusters.bed, tss_cluster_counts.tsv, tss_cluster_sl_counts.tsv or [], tss_cluster_sl_leaders.tsv or [] ]
+    cage  = ch_cage  // channel: [ meta, clusters.bed, counts.tsv or [], sl_counts.tsv or [], sl_leaders.tsv or [], sl_clusters.bed or [] ]
+}
+
+//
+// TSS input files of one sample: [ meta, clusters, counts, sl_counts, sl_leaders, sl_bed ]
+//
+def tssInputFiles(meta, tss, tss_sl, cluster_set, trans_splicing) {
+    def path = file(tss.toString())
+    if (path.isDirectory()) {
+        if (tss_sl) {
+            error("Sample '${meta.id}': tss_sl is for BED input; a cagescan results directory carries its own SL counts.")
+        }
+        return cagescanTssFiles(meta, path, cluster_set, trans_splicing)
+    }
+    if (!tss_sl) {
+        log.info("Sample '${meta.id}': no SL acceptor clusters (tss_sl); every TSS will be labelled nosl and operons are not annotated.")
+    }
+    def sl_bed = (tss_sl && trans_splicing) ? file(tss_sl.toString()) : []
+    return [ meta, path, [], [], [], sl_bed ]
 }
 
 //
@@ -70,11 +89,11 @@ def cagescanTssFiles(meta, cagescan_dir, cluster_set, trans_splicing) {
         }
     }
     if (!trans_splicing) {
-        return [ meta, clusters, counts, [], [] ]
+        return [ meta, clusters, counts, [], [], [] ]
     }
     if (!sl_counts.exists()) {
         log.info("Sample '${meta.id}': no spliced-leader counts in ${dir}; every TSS will be labelled nosl and operons are not annotated.")
-        return [ meta, clusters, counts, [], [] ]
+        return [ meta, clusters, counts, [], [], [] ]
     }
-    return [ meta, clusters, counts, sl_counts, sl_leaders.exists() ? sl_leaders : [] ]
+    return [ meta, clusters, counts, sl_counts, sl_leaders.exists() ? sl_leaders : [], [] ]
 }

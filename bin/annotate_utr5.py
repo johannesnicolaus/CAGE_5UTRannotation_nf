@@ -16,11 +16,17 @@ Coding mRNAs (models open at the 5' end are left alone):
    are the candidates plus every peak in the EGAPx 5' UTR, also beyond --max-dist, so a
    weak peak near the ATG cannot trim a UTR whose strong TSS lies further away
    (--rel-window-only compares with the candidates only).
-3. One peak is chosen:
+3. One peak is chosen (--selection):
+   auto         the strongest mature-mRNA 5' end (default; suits metazoans with or
+                without trans-splicing): sl acceptors and nosl peaks that are not
+                upstream of a qualifying acceptor compete by count. A nosl peak upstream
+                of an acceptor is left out because it may be the outron start, whose
+                reads come from short-lived pre-mRNA, not mature mRNA. Without sl
+                acceptors this is the dominant peak.
    closest_atg  the shortest 5' UTR; in trans-spliced genes this is the SL acceptor,
-                which lies downstream of the outron TSS (default);
-   dominant     the highest count.
-   Ties prefer nosl over sl (as add_five_prime_utr() did), then the higher count.
+                and a nosl TSS downstream of an acceptor is preferred over it;
+   dominant     the highest count, sl or not.
+   Ties go to the shorter 5' UTR, then nosl over sl (as add_five_prime_utr() did).
    SL acceptor rule: when an sl peak passes the count filters, nosl peaks up to
    --sl-window-up bases upstream or --sl-window-down bases downstream of it (default 5;
    -1 for no limit) are not TSS candidates. Within a few bases of an acceptor a nosl
@@ -28,9 +34,10 @@ Coding mRNAs (models open at the 5' end are left alone):
    the leader's final AG, which map to the A of the acceptor AG, 2 nt upstream).
    Further away, nosl TSSs can be genuine: tunicates have non-trans-spliced TSSs a few
    tens of nt upstream (Ciona, Matsumoto et al. 2010) or downstream (O. dioica testis,
-   Danks et al. 2018) of acceptors. When the chosen TSS is nosl but the transcript also
-   has a qualifying sl acceptor, that acceptor is recorded (sl_acceptor_peak,
-   sl_acceptor_count).
+   Danks et al. 2018) of acceptors. The strongest remaining TSS of the other kind is
+   recorded: sl_acceptor_peak / sl_acceptor_count when the chosen TSS is nosl, and
+   nosl_tss_peak / nosl_tss_count when it is sl (an outron start, or the TSS of a
+   non-trans-spliced RNA of the same gene).
 4. Exons upstream of the TSS are dropped and the first exon starts at the TSS, so the
    UTR is extended or trimmed. CDS rows are never changed.
 
@@ -46,8 +53,11 @@ Attributes added to the transcript (five_prime_UTR rows carry only ID and Parent
   tss_shift      bases added (positive) or removed (negative) at the 5' end
   acceptor_AG    sl only: true if the two genomic bases before the TSS are AG
   sl_acceptor_peak, sl_acceptor_count
-                 nosl TSS only: the strongest qualifying sl acceptor of the transcript, which
-                 also makes trans-spliced RNA
+                 nosl TSS only: the strongest qualifying sl acceptor of the transcript (it also
+                 makes trans-spliced RNA)
+  nosl_tss_peak, nosl_tss_count
+                 sl TSS only: the strongest qualifying nosl TSS (outron start or the TSS of a
+                 non-trans-spliced RNA)
   sl_leader      sl only, when several leaders were searched for: the main leader
 An sl TSS also gets a 1-bp trans_splice_acceptor_site row (SO:0000706). When the TSS of
 an mRNA is at the ATG (5' UTR of length 0, common for SL acceptors) there is no
@@ -191,10 +201,15 @@ def choose_coding(peaks, selection, min_rel, min_count, rel_window_only, window_
     if not kept:
         return None, []
     nosl_first = lambda c: 0 if c[1]["tss_type"] == "nosl" else 1
-    if selection == "dominant":
-        best = min(kept, key=lambda c: (-c[1]["count"], c[2], nosl_first(c)))
-    else:
+    strongest = lambda pool: min(pool, key=lambda c: (-c[1]["count"], c[2], nosl_first(c)))
+    if selection == "closest_atg":
         best = min(kept, key=lambda c: (c[2], nosl_first(c), -c[1]["count"]))
+    elif selection == "dominant":
+        best = strongest(kept)
+    else:  # auto: no nosl peak upstream of (longer UTR than) the most upstream acceptor
+        acceptor_lens = [c[2] for c in kept if c[1]["tss_type"] == "sl"]
+        pool = [c for c in kept if not acceptor_lens or c[1]["tss_type"] == "sl" or c[2] < max(acceptor_lens)]
+        best = strongest(pool)
     return best[:3], kept
 
 
@@ -235,24 +250,31 @@ def noncoding_candidates(t, gene_id, tss_index, cds_index, max_dist, min_length)
     return out
 
 
-def choose_noncoding(cands, min_count, window_up, window_down, strand):
-    """(chosen (pos, row, shift) or None, remaining candidates)."""
+def choose_noncoding(cands, min_count, window_up, window_down, strand, selection):
+    """(chosen (pos, row, shift) or None, remaining candidates). Strongest peak; with
+    'auto' (and 'closest_atg', which has no meaning without an ATG) nosl peaks upstream
+    of a qualifying sl acceptor are left out, as for mRNAs."""
     kept = [c for c in cands if c[1]["count"] >= min_count and c[1]["count"] > 0]
     kept = acceptor_rule(kept, window_up, window_down, upstream_distance(strand))
     if not kept:
         return None, []
-    return min(kept, key=lambda c: (-c[1]["count"], abs(c[2]), 0 if c[1]["tss_type"] == "nosl" else 1)), kept
+    pool = kept
+    if selection != "dominant":  # as 'auto' for mRNAs: leave out nosl peaks upstream of an acceptor
+        acceptor_shifts = [c[2] for c in kept if c[1]["tss_type"] == "sl"]
+        pool = [c for c in kept if not acceptor_shifts or c[1]["tss_type"] == "sl" or c[2] < max(acceptor_shifts)]
+    return min(pool, key=lambda c: (-c[1]["count"], abs(c[2]), 0 if c[1]["tss_type"] == "nosl" else 1)), kept
 
 
-def record_unchosen_acceptor(t, pick, kept):
-    """When the chosen TSS is nosl, keep the strongest remaining sl acceptor as attributes."""
-    if pick[1]["tss_type"] != "nosl":
+def record_other_kind(t, pick, kept):
+    """Record the strongest remaining TSS of the other kind (sl vs nosl) as attributes."""
+    other = "sl" if pick[1]["tss_type"] == "nosl" else "nosl"
+    pool = [c for c in kept if c[1]["tss_type"] == other]
+    if not pool:
         return
-    acceptors = [c for c in kept if c[1]["tss_type"] == "sl"]
-    if acceptors:
-        pos, row = max(acceptors, key=lambda c: c[1]["count"])[:2]
-        t.feature.set("sl_acceptor_peak", f"{t.seqid}:{pos}:{t.strand}")
-        t.feature.set("sl_acceptor_count", f"{row['count']:g}")
+    pos, row = max(pool, key=lambda c: c[1]["count"])[:2]
+    prefix = "sl_acceptor" if other == "sl" else "nosl_tss"
+    t.feature.set(f"{prefix}_peak", f"{t.seqid}:{pos}:{t.strand}")
+    t.feature.set(f"{prefix}_count", f"{row['count']:g}")
 
 
 def set_five_prime_end(t, pos):
@@ -318,7 +340,7 @@ def main():
     parser.add_argument("--output", required=True)
     parser.add_argument("--max-dist", type=int, default=500,
                         help="maximum 5' UTR length (coding) or 5' end move (non-coding), along the transcript")
-    parser.add_argument("--selection", choices=["closest_atg", "dominant"], default="closest_atg")
+    parser.add_argument("--selection", choices=["auto", "closest_atg", "dominant"], default="auto")
     parser.add_argument("--min-rel", type=float, default=0.1, help="minimum count relative to the strongest reference peak")
     parser.add_argument("--rel-window-only", action="store_true",
                         help="compare --min-rel with the strongest peak within --max-dist only, not the whole EGAPx 5' UTR")
@@ -365,7 +387,7 @@ def main():
         assert t.utr_lengths()[0] == utr_len, f"5' UTR length mismatch in {t.id}"
         st["CAGE TSS"] += 1
         record_tss(t, pos, row, utr_len - old_len, genome, st)
-        record_unchosen_acceptor(t, pick, kept)
+        record_other_kind(t, pick, kept)
 
     if not args.coding_only:
         for gene, t in ann.noncoding_transcripts():
@@ -373,7 +395,8 @@ def main():
             st["total"] += 1
             t.others = [o for o in t.others if o.type != TSA]
             cands = noncoding_candidates(t, gene.feature.id, tss_index, cds_index, args.max_dist, args.nc_min_length)
-            pick, kept = choose_noncoding(cands, args.min_count, args.sl_window_up, args.sl_window_down, t.strand)
+            pick, kept = choose_noncoding(cands, args.min_count, args.sl_window_up, args.sl_window_down, t.strand,
+                                          args.selection)
             if pick is None:
                 st["no CAGE TSS, EGAPx kept"] += 1
                 t.feature.set("tss_evidence", "EGAPx")
@@ -384,7 +407,7 @@ def main():
             assert transcript_length(t) - old_len == shift, f"5' end shift mismatch in {t.id}"
             st["CAGE TSS"] += 1
             record_tss(t, pos, row, shift, genome, st)
-            record_unchosen_acceptor(t, pick, kept)
+            record_other_kind(t, pick, kept)
 
     ann.write(args.output)
     for kind, counter in stats.items():

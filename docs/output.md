@@ -56,6 +56,7 @@ The pipeline's evidence attributes are on the transcript row only (`mRNA`, `lncR
 | `sl_count`      | of these, READ1s carrying the spliced leader                                                  |
 | `sl_fraction`   | `sl_count / tss_count`                                                                        |
 | `sl_leader`     | `sl` only, when cagescan searched for several leaders: the main leader of the TSS (e.g. SL1, SL2) |
+| `nosl_tss_peak`, `nosl_tss_count` | `sl` TSS only: the strongest non-SL TSS of the transcript that passed the filters (an outron start, or the TSS of a non-trans-spliced RNA) |
 | `sl_acceptor_peak`, `sl_acceptor_count` | `nosl` TSS only: the strongest SL acceptor of the transcript that passed the count filters, i.e. the transcript also makes trans-spliced RNA |
 | `acceptor_AG`   | `sl` only: `true` if the two genomic bases before the TSS are AG (the trans-splice acceptor) |
 | `tss_shift`     | bases added (positive) or removed (negative) at the 5' end                                    |

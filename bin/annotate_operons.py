@@ -8,12 +8,18 @@
    each strand of each sequence. Genes on the other strand are ignored, so nested or
    interleaved genes do not interrupt an operon (as calcOperons() in annotationpolish).
 2. A gene joins the operon of the gene before it (in transcription order) when the
-   intergenic distance, from the 3'-most end of the operon so far to the 5' end of the
-   gene, is below --max-gap bases. Overlapping genes have a negative distance and join.
-   Gene ends are those of the input annotation, i.e. after the CAGE 5' and PAS 3' ends.
+   intergenic distance, from the 3'-most stop codon of the operon so far to the gene's
+   5'-most start codon, is below --max-gap-cds (500) bases (--gap-from cds, default).
+   Distances between transcript ends would be the true intercistronic regions (23-30 nt
+   in O. dioica), but annotated UTR ends are not precise enough: on the I69 EGAPx and O10
+   annotations they gave less SL-consistent operons and broke the Ganot operon (see
+   docs/rationale.md). --gap-from transcript (< --max-gap-tx, 100) and --gap-from
+   evidence (transcript ends when both are supported by PAS/poly(A) reads and CAGE,
+   otherwise CDS) are available. Non-coding genes use their transcript ends. Overlapping
+   genes join.
 3. An operon is split before a downstream gene when a non-SL (nosl) TSS with at least
-   --split-min-count reads lies on its strand between the end of the previous gene and
-   the gene's start codon (its first transcript base for non-coding genes): the gene
+   --split-min-count reads lies on its strand between the stop codon of the previous
+   gene and the gene's start codon (transcript ends for non-coding genes): the gene
    has its own promoter, however short the intergenic distance (as split_operons()).
    SL acceptor rule (as in annotate_utr5.py): a nosl TSS within --sl-window-up bases
    upstream or --sl-window-down bases downstream of an sl TSS (default 5) does not split.
@@ -52,9 +58,10 @@ def read_tss(path):
 
 
 class GeneInfo:
-    __slots__ = ("id", "name", "seqid", "strand", "start", "end", "atg", "tss_type", "sl_fraction")
+    __slots__ = ("id", "name", "seqid", "strand", "start", "end", "atg", "tss_type", "sl_fraction",
+                 "span_start", "span_end", "cds_start", "cds_end", "end5_evidence", "end3_evidence")
 
-    def __init__(self, gene):
+    def __init__(self, gene, gap_from="cds"):
         f = gene.feature
         self.id = f.id
         self.name = f.get("gene") or f.get("Name") or f.id
@@ -65,6 +72,20 @@ class GeneInfo:
             self.atg = min(t.cds_bounds()[0] for t in coding) if f.strand == "+" else max(t.cds_bounds()[1] for t in coding)
         else:
             self.atg = f.start if f.strand == "+" else f.end
+        # CDS span (start codon to stop codon); the whole gene for non-coding genes
+        if coding:
+            self.cds_start = min(t.cds_bounds()[0] for t in coding)
+            self.cds_end = max(t.cds_bounds()[1] for t in coding)
+        else:
+            self.cds_start, self.cds_end = f.start, f.end
+        # span used for operon gaps with --gap-from cds / transcript
+        if gap_from == "cds":
+            self.span_start, self.span_end = self.cds_start, self.cds_end
+        else:
+            self.span_start, self.span_end = f.start, f.end
+        # are the gene's 5' and 3' ends supported by evidence (set by this pipeline)?
+        self.end5_evidence = any(t.feature.get("tss_evidence") == "CAGE" for t in gene.transcripts)
+        self.end3_evidence = any(t.feature.get("utr3_evidence") in ("PAS", "polyA_reads") for t in gene.transcripts)
         types = [t.feature.get("tss_type") for t in gene.transcripts if t.feature.get("tss_type")]
         self.tss_type = "sl" if "sl" in types else ("nosl" if types else "NA")
         fractions = [t.feature.get("sl_fraction") for t in gene.transcripts if t.feature.get("sl_fraction")]
@@ -76,11 +97,34 @@ class GeneInfo:
 
     @property
     def three_prime(self):
-        return self.end if self.strand == "+" else self.start
+        """3' end of the span used for operon gaps (stop codon with --gap-from cds)."""
+        return self.span_end if self.strand == "+" else self.span_start
 
 
-def candidate_runs(genes, max_gap):
-    """Runs of same-strand genes with intergenic distances below max_gap, in transcription order.
+def pair_gap(prev_tx_edge, prev_cds_edge, prev_end3_ok, g, strand, gap_from, max_gap_tx, max_gap_cds):
+    """(gap, joins) between the run so far and gene g.
+
+    gap_from 'cds': stop-to-start codon distance < max_gap_cds.
+    gap_from 'transcript': distance between transcript ends < max_gap_tx.
+    gap_from 'evidence': the transcript-end distance (< max_gap_tx) when both ends are
+    supported (upstream 3' end by PAS or poly(A) reads, downstream 5' end by CAGE),
+    otherwise the CDS distance (< max_gap_cds).
+    """
+    if strand == "+":
+        tx_gap, cds_gap = g.start - prev_tx_edge - 1, g.cds_start - prev_cds_edge - 1
+    else:
+        tx_gap, cds_gap = prev_tx_edge - g.end - 1, prev_cds_edge - g.cds_end - 1
+    if gap_from == "transcript":
+        return tx_gap, tx_gap < max_gap_tx
+    if gap_from == "cds":
+        return cds_gap, cds_gap < max_gap_cds
+    if prev_end3_ok and g.end5_evidence:
+        return tx_gap, tx_gap < max_gap_tx
+    return cds_gap, cds_gap < max_gap_cds
+
+
+def candidate_runs(genes, max_gap_tx, gap_from="cds", max_gap_cds=500):
+    """Runs of same-strand genes closer than the gap limits, in transcription order.
 
     Yields lists of (gene, distance to the previous gene or None).
     """
@@ -88,19 +132,26 @@ def candidate_runs(genes, max_gap):
     for g in genes:
         by_strand[(g.seqid, g.strand)].append(g)
     for (seqid, strand), items in sorted(by_strand.items()):
-        items.sort(key=lambda g: (g.start, g.end))
+        items.sort(key=lambda g: (g.cds_start, g.cds_end))
         if strand == "-":
-            items.sort(key=lambda g: (-g.end, -g.start))
-        run, edge = [], None  # edge: 3'-most coordinate of the run so far
+            items.sort(key=lambda g: (-g.cds_end, -g.cds_start))
+        three = (lambda g: (g.end, g.cds_end)) if strand == "+" else (lambda g: (g.start, g.cds_start))
+        further = max if strand == "+" else min
+        run, tx_edge, cds_edge, end3_ok = [], None, None, False
         for g in items:
             if run:
-                gap = (g.start - edge - 1) if strand == "+" else (edge - g.end - 1)
-                if gap < max_gap:
+                gap, joins = pair_gap(tx_edge, cds_edge, end3_ok, g, strand, gap_from, max_gap_tx, max_gap_cds)
+                if joins:
                     run.append((g, gap))
-                    edge = max(edge, g.end) if strand == "+" else min(edge, g.start)
+                    tx3, cds3 = three(g)
+                    if further(tx_edge, tx3) == tx3:
+                        end3_ok = g.end3_evidence
+                    tx_edge, cds_edge = further(tx_edge, tx3), further(cds_edge, cds3)
                     continue
                 yield run
-            run, edge = [(g, None)], g.three_prime
+            run = [(g, None)]
+            tx_edge, cds_edge = three(g)
+            end3_ok = g.end3_evidence
         if run:
             yield run
 
@@ -142,7 +193,7 @@ def split_run(run, tss_index, split_min_count, window_up, window_down):
             pieces.append([(g, gap)])
         else:
             pieces[-1].append((g, gap))
-        edge = max(edge, g.end) if g.strand == "+" else min(edge, g.start)
+        edge = max(edge, g.span_end) if g.strand == "+" else min(edge, g.span_start)
     return pieces, splits, sl_upstream
 
 
@@ -151,9 +202,15 @@ def main():
     parser.add_argument("--gff", required=True)
     parser.add_argument("--tss", required=True, help="table from cage_tss_table.py")
     parser.add_argument("--prefix", required=True)
-    parser.add_argument("--max-gap", type=int, default=500, help="intergenic distances below this join genes")
+    parser.add_argument("--max-gap-cds", type=int, default=500,
+                        help="stop-to-start codon distances below this join genes (--gap-from cds, evidence)")
+    parser.add_argument("--max-gap-tx", type=int, default=100,
+                        help="distances between transcript ends below this join genes (--gap-from transcript, evidence)")
     parser.add_argument("--split-min-count", type=float, default=0, help="minimum pooled count of a splitting nosl TSS")
     parser.add_argument("--min-genes", type=int, default=2)
+    parser.add_argument("--gap-from", choices=["cds", "transcript", "evidence"], default="cds",
+                        help="cds: stop to start codon (default); transcript: transcript ends; evidence: "
+                             "transcript ends when both are supported by evidence, otherwise cds")
     parser.add_argument("--sl-window-up", type=int, default=5,
                         help="a nosl TSS up to this many bases upstream of an sl TSS does not split (-1: no limit)")
     parser.add_argument("--sl-window-down", type=int, default=5,
@@ -171,11 +228,11 @@ def main():
             return value
         return "protein_coding" if any(t.is_coding for t in gene.transcripts) else "other"
 
-    genes = [GeneInfo(g) for g in ann.genes
+    genes = [GeneInfo(g, args.gap_from) for g in ann.genes
              if g.transcripts and g.feature.type == "gene" and (biotypes is None or biotype(g) in biotypes)]
 
     operons, rows = [], []
-    for run in candidate_runs(genes, args.max_gap):
+    for run in candidate_runs(genes, args.max_gap_tx, args.gap_from, args.max_gap_cds):
         if len(run) < 2:
             continue
         pieces, splits, sl_upstream = split_run(run, tss_index, args.split_min_count,

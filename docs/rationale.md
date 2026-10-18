@@ -5,12 +5,15 @@ This file records every rule the pipeline applies, its parameters and defaults, 
 Kinds of evidence, as tagged below:
 
 - **[lit]**: published literature. References are at the end, checked against PubMed.
-- **[data]**: our own measurements. Unless stated otherwise they come from the Osaka CAGE run (cagescan `osa_MGI_220209_v4` on the O10 genome; 6 libraries: D2_4, DE1, DE2, EB1, EB2, EB3) and the O10 v1.3 annotation.
+- **[data]**: our own measurements, on two genomes. Parameters are checked on both.
+  - **O10:** the Osaka CAGE run (cagescan `osa_MGI_220209_v4` on the O10 genome; 6 libraries: D2_4, DE1, DE2, EB1, EB2, EB3) with the O10 v1.3 annotation.
+  - **I69:** the Okinawa CAGEr consensus clusters (oist/LuscombeU-CAGE_libraries, SL and non-SL clustered separately) with the **I69 EGAPx annotation** (`egapx_runs/annotation_egapx/I69_prim`).
 - **[prev]**: carried over from the unit's earlier code. These are `annotationpolish` (`add_five_prime_utr()`, `add_three_prime_utr()`, `calcOperons()`, `split_operons()`) and `LuscombeU_5primeanno`.
 - **[choice]**: a decision by the pipeline author (Johannes Nicolaus Wibisana), with the reason given.
 
 ## Contents
 
+0. [Recommended settings by organism](#0-recommended-settings-by-organism)
 1. [Inputs and conventions](#1-inputs-and-conventions)
 2. [SL labels of TSS clusters](#2-sl-labels-of-tss-clusters)
 3. [5' ends of coding mRNAs](#3-5-ends-of-coding-mrnas)
@@ -27,6 +30,19 @@ Kinds of evidence, as tagged below:
 
 ---
 
+## 0. Recommended settings by organism
+
+**The defaults are meant for metazoans in general,** with or without trans-splicing. Change parameters only for the reasons below.
+
+| Organism group | Settings | Why |
+| --- | --- | --- |
+| No SL trans-splicing (most metazoans) | defaults | Without SL clusters every TSS is `nosl`, `--tss_selection auto` is the dominant TSS (the CAGE convention), and no operons are annotated. |
+| Tunicates (*Oikopleura*, *Ciona*) | defaults | Settings for TSSs near SL acceptors (`--sl_window_up/down 5`) and for operons (`--operon_gap_from cds`, `--operon_max_gap 500`) were chosen and tested on *O. dioica* (I69 EGAPx, O10, Ganot operon). Tunicates have genuine non-trans-spliced TSSs tens of nt from acceptors (sections 3 and 4), so do not widen the SL windows. |
+| *Ciona* specifically | defaults; `--operons` can stay on | *Ciona* has SL trans-splicing for about half of expressed genes and some polycistronic units, most of them without intercistronic sequence [lit: Satou 2006]. The pipeline has not been run on *Ciona*. |
+| Trans-splicing organisms without operons (e.g. some flatworms, cnidarians) | `--operons false` | Trans-splicing does not imply operons [lit: Lasda & Blumenthal 2011]. |
+| Nematodes (*C. elegans*) | defaults; optionally `--sl_window_up 50` | Experiments define a minimum outron of about 50 nt [lit: Conrad 1991, 1995]. For nematodes it is reasonable to treat non-SL peaks closer than that as SL-derived. The pipeline has not been run on *C. elegans*: no CAGE data for it were found on SRA, only short capped nuclear RNA (Jänes et al. 2018), which marks outron starts rather than SL acceptors. |
+| Organisms whose CAGE has no SL information | `--trans_splicing false` | Every TSS is `nosl`; no acceptor rows and no operons. |
+
 ## 1. Inputs and conventions
 
 | Item | Rule | Rationale |
@@ -37,9 +53,12 @@ Kinds of evidence, as tagged below:
 | UTR rows | Always regenerated from exons and CDS. Input `five_prime_UTR`, `three_prime_UTR` and `UTR` rows are dropped. | One source of truth. |
 | Evidence attributes | Kept on the transcript row only. UTR rows carry only `ID` and `Parent`. | [choice] The TSS type describes the transcript, and it must be present even when the 5' UTR has length 0. |
 | CDS | Never changed. Each script asserts this. | Protein models are EGAPx's responsibility. |
-| CAGE input | cagescan `tss_clusters/<set>/`. The `broad` set is the default (`--cluster_set`). | `sharp` (RECLU) needs replicates. |
+| CAGE input | Samplesheet column `tss` takes either a cagescan results directory (`tss_clusters/<set>/`, `broad` by default via `--cluster_set`) or a BED of TSS clusters from any CAGE workflow; `tss_sl` takes an optional BED of SL acceptor clusters. | [choice, user] Most CAGE is single-end, and cagescan currently needs pairs (single-end mode proposed in johannesnicolaus/cagescan_nextflow#5). The BED route was checked on I69: the CAGEr BEDs used directly gave identical results to the same clusters repackaged as cagescan output. |
+| BED peak | `thickStart` (BED ≥ 8 columns), otherwise the 1-bp cluster, otherwise the cluster's 5' end (with a warning). The score column is the count. | CAGEr, CAGEfightR and cagescan write the dominant CTSS in `thickStart`. |
 
 ## 2. SL labels of TSS clusters
+
+With BED input, clusters in `tss` are `nosl` and clusters in `tss_sl` are `sl`; the threshold below does not apply.
 
 | Parameter | Default | Rule |
 | --- | --- | --- |
@@ -53,12 +72,24 @@ Kinds of evidence, as tagged below:
 
 | Parameter | Default | Rule and rationale |
 | --- | --- | --- |
-| `--tss_max_dist` | 500 | Candidate TSSs give a 5' UTR of at most 500 nt, measured along the transcript (5' UTR exons, then the genome upstream of the EGAPx 5' end). [prev] `add_five_prime_utr(dist = 500)`. |
-| `--tss_selection` | `closest_atg` | Choose the candidate giving the shortest 5' UTR. [choice, user] In trans-spliced genes the mature 5' end is the SL acceptor, which lies downstream of the outron TSS, so "closest to the ATG" picks the acceptor. `dominant` (highest count) is the alternative. |
+| `--tss_max_dist` | 500 | Candidate TSSs give a 5' UTR of at most 500 nt, measured along the transcript (5' UTR exons, then the genome upstream of the EGAPx 5' end). [prev] `add_five_prime_utr(dist = 500)`. [lit] Average 5' UTR lengths are 100–220 nt across taxa: invertebrates 222 nt, human 210 nt [Mignone 2002]. 500 covers typical UTRs, and longer ones keep their EGAPx end. |
+| `--tss_selection` | `auto` | The strongest **mature-mRNA 5' end**: SL acceptors, and `nosl` TSSs that are not upstream of a qualifying acceptor, compete by count. Without SL data this is the dominant TSS. See below. |
 | `--tss_min_rel` | 0.1 | Candidates below 10% of the strongest reference peak are dropped. CAGE "exon painting" leaves weak capped 5' ends inside exons [lit: Fejes-Toth 2009], and these would otherwise win "closest to ATG". |
 | `--tss_rel_whole_utr` | true | The reference for `--tss_min_rel` is every peak in the EGAPx 5' UTR, including those beyond `--tss_max_dist`. [choice] Otherwise a weak peak near the ATG could trim a UTR whose strong TSS lies further away. Such mRNAs keep the EGAPx end. |
 | `--tss_min_count` | 0 | No absolute threshold. cagescan clusters already require ≥ 5 TPM in a sample. |
 | `--utr5_min_len` | 0 | A TSS at the ATG is allowed. SL acceptors can sit at or next to the ATG: in *O. dioica* the leader-to-start distance averages 22 nt, and is ≤ 5 nt for 20% of genes [lit: Ganot 2004]. With the old default of 1, such genes fell back to EGAPx and lost their `sl` label. |
+
+**Why `auto`.** [data, lit]
+
+- **`dominant` alone is wrong for trans-spliced genes.** A `nosl` peak upstream of an SL acceptor is often the outron start. Its reads come from capped pre-mRNA, which is removed and degraded by trans-splicing [lit: Morton & Blumenthal 2011]; Saito et al. 2013 needed nuclear enrichment to see outron TSSs at all. So it is not the 5' end of the mature mRNA. On O10, `dominant` moved 141 transcripts from an SL acceptor to an upstream `nosl` peak.
+- **`closest_atg` alone is wrong for genes without trans-splicing.** It picks a minor TSS nearer the ATG over the dominant promoter.
+- **Why `nosl` TSSs downstream of an acceptor still compete.** A stronger one can be the main 5' end of a non-trans-spliced mRNA. Examples are *Ciona* "infrequently trans-spliced" genes [lit: Matsumoto 2010] and *O. dioica* testis promoters [lit: Danks 2018].
+- **Effect on O10.**
+  - `auto`: 4,951 mRNAs `sl` (98.7% with AG).
+  - `closest_atg`: 4,859. `dominant`: 4,812.
+  - Under `auto`, 80 mRNAs choose a `nosl` TSS that is downstream of, and stronger than, their acceptor.
+- **The other kind is always recorded.** When the chosen TSS is `nosl`, the strongest qualifying SL acceptor goes into `sl_acceptor_peak` / `sl_acceptor_count`. When it is `sl`, the strongest `nosl` TSS goes into `nosl_tss_peak` / `nosl_tss_count`; that is an outron start or a non-trans-spliced TSS.
+- **History.** `closest_atg` was the first default (user preference for *O. dioica*) and remains available.
 
 Other rules:
 
@@ -78,7 +109,7 @@ Other rules:
 
 A "qualifying acceptor" is an `sl` peak that passed the count filters of section 3. The rule applies to the TSS choice (sections 3 and 5) and to operon splits (section 8).
 
-When the chosen TSS is still `nosl` but the transcript has a qualifying SL acceptor, the transcript records that acceptor as `sl_acceptor_peak` and `sl_acceptor_count`. The transcript also makes trans-spliced RNA, and this information is not lost.
+The strongest TSS of the other kind is always recorded on the transcript (section 3): `sl_acceptor_peak` / `sl_acceptor_count`, or `nosl_tss_peak` / `nosl_tss_count`. That keeps dual trans-spliced and non-trans-spliced genes visible.
 
 **Why the near peaks are ignored.** A `nosl` peak within a few nt of an acceptor is SL-derived. [data]
 
@@ -116,7 +147,9 @@ So a `nosl` TSS a few tens of nt upstream of an acceptor cannot start that accep
 | No rule | 4,848 (4,786) | 1,568 | 20.3% |
 | 5 nt, SL stronger (first version) | 4,861 (4,799) | 1,538 | 18.7% |
 | Downstream unlimited + 50 nt upstream | 5,031 (4,967) | 1,349 | 7.3% |
-| **5 nt up / 5 nt down (current)** | **4,859 (4,796)** | **1,535** | **18.6%** |
+| **5 nt up / 5 nt down (current window)** | **4,859 (4,796)** | **1,535** | **18.6%** |
+
+These rows used `--tss_selection closest_atg`. With the current default `auto`, O10 has 4,951 `sl` mRNAs (4,888 with AG).
 
 With the current rule, 172 `nosl` mRNAs record an SL acceptor (`sl_acceptor_peak`). These are mostly cases with a `nosl` peak more than 5 nt downstream of an acceptor. Under the wider rule they would have been labelled `sl`.
 
@@ -142,13 +175,17 @@ The first rule that applies sets the 3' end. [choice, user, chosen over "first P
    - do not reach another gene's CDS on the same strand;
    - do not extend into another gene's transcript on the same strand.
 
-   The motif **closest to the EGAPx end** is used. The new end is the motif end + `--pas_offset` (0). [prev] The window and motif come from `add_three_prime_utr(dist = 500, motif = "AATAAA")`.
+   The motif **closest to the EGAPx end** is used. The new end is the motif end + `--pas_offset` (15). [prev] The window comes from `add_three_prime_utr(dist = 500)`.
 3. **`EGAPx`.** Otherwise the EGAPx end is kept.
 
 Rationale:
 
-- **Why closest to the EGAPx end, not first after the stop codon.** *O. dioica* is AT-rich, so AATAAA occurs by chance. "First after stop" would truncate real UTRs at chance motifs.
-- **`--pas_offset 0`.** Cleavage usually happens 10–30 nt downstream of AATAAA. 0 keeps the old behaviour; the offset is exposed for tuning.
+- **Why closest to the EGAPx end, not first after the stop codon.** Hexamer motifs occur by chance: about 0.6 AATAAA per kb per strand at 41% GC. "First after stop" would truncate real UTRs at chance motifs.
+  - **Correction (2026-10-18):** an earlier version said *O. dioica* is "AT-rich". O10 is 41.4% GC, like human, so it does not have more chance AATAAA than other genomes.
+- **`--pas_motifs AATAAA,ATTAAA`.** [lit: Tian & Graber 2012] In human polyA sites, AAUAAA is found at ~53–58% and AUUAAA at ~15–17%. AUUAAA has ~80% of AAUAAA's processing efficiency. In *C. elegans* only ~40% of sites have AAUAAA, and AAUGAA is the most common variant. The old code used AATAAA only.
+  - On O10, adding ATTAAA raises motif sites from 136k to 216k, and PAS-set 3' ends from 64% to 71%.
+  - There are no tunicate-specific data. In the *O. dioica* cyclin D3 operon, only the last cistron has AAUAAA [lit: Ganot 2004]. AATAAA alone is a conservative alternative.
+- **`--pas_offset 15`.** The signal lies "within ~40 nt upstream" of the cleavage site in mammals [lit: Tian & Graber 2012], and cleavage is commonly 10–30 nt downstream of it. In *O. dioica* cyclin D, AAUAAA sits 17 nt upstream of the poly(A) tail [lit: Ganot 2004]. 0 (the old behaviour) put the end at the motif, which is always too short.
 - **The next-transcript guard.** In operons the 3' end stops before the next gene's 5' end, which the 5' step has already set. Overlaps already present in EGAPx are not counted.
 
 ## 7. Trans-splicing and operon switches
@@ -173,22 +210,39 @@ So there are two independent switches:
 
 | Parameter | Default | Rule |
 | --- | --- | --- |
-| `--operon_max_gap` | 500 | Same-strand genes join when the intergenic distance is below 500 nt (at most 499 bases between them). Genes on the other strand are ignored, and overlapping genes join. |
+| `--operon_gap_from` | `cds` | Intergenic distance from the stop codon of the previous gene to the start codon of the next. Alternatives: `transcript` (transcript ends) and `evidence` (transcript ends when both are evidence-supported, otherwise CDS). |
+| `--operon_max_gap` | 500 | CDS distance below which same-strand genes join (at most 499 bases between the codons). Genes on the other strand are ignored, and overlapping genes join. |
+| `--operon_max_gap_tx` | 100 | Transcript-end distance limit for `transcript` / `evidence`. |
 | `--operon_split_min_count` | 0 | Minimum count of a `nosl` TSS that splits an operon. |
 | `--operon_biotypes` | `protein_coding` | Genes considered (`gene_biotype`, or "has a CDS" when the attribute is absent). |
 | `--sl_window_up` / `--sl_window_down` | 5 / 5 | `nosl` TSSs this close to an SL TSS do not split (section 4). |
 
 - **Grouping.** [lit, prev] Plessy et al. 2024 define operons as same-strand genes "separated by an intergenic distance of at most 500 bp". In their `calcOperons(window = 500)`, genes merge when start(B) − end(A) ≤ 500. Opposite-strand genes do not interrupt, and an operon needs at least 2 genes.
-- **Gene ends.** Gene ends are those after UTR annotation. Plessy used CDS-only models, so gaps here are smaller and the same window is more permissive.
+- **Why CDS distances, not transcript ends.** [data, choice] Plessy's 500 bp was calibrated on models without UTRs. The user asked for distances between transcript ends instead, now that UTRs are annotated: those are the true intercistronic regions, 23–30 nt in *O. dioica* [lit: Ganot 2004] and about 100 bp in *C. elegans* [lit: Blumenthal 2015]. Tested on I69 EGAPx and O10.
+  - **The short-gap signal is real.** On I69 EGAPx, the share of CAGE-supported downstream genes that start at an SL acceptor is 96–97% at 0–60 nt from the previous transcript, 86% at 61–100 nt, 65% at 101–200 nt and 27% beyond 1 kb.
+  - **But annotated UTR ends are too imprecise to use as gaps.** At the Ganot locus in I69 EGAPx, transcript-end gaps are 23–362 nt against true intercistronic regions of 23–30 nt. XPO7's 3' end was kept from EGAPx and is 285 nt short, and TUBD1 and CYCD3 have no CAGE TSS, so they keep EGAPx 5' ends.
+  - **Transcript-end gaps of 60 nt break the Ganot operon** on I69 EGAPx and give 14–35% of genes in operons.
+  - **The evidence-aware mode doesn't help.** It uses transcript ends only when the upstream 3' end comes from PAS or poly(A) reads and the downstream 5' end from CAGE. Both quality measures got worse:
+
+    | Genome | Rule | downstream genes with SL TSS | split-off genes with SL TSS |
+    | --- | --- | --- | --- |
+    | I69 | CDS 500 | **51.9%** | **31.0%** |
+    | I69 | evidence 100 | 47.7% | 37.2% |
+    | O10 | CDS 500 | **57.9%** | **21.6%** |
+    | O10 | evidence 100 | 47.8% | 31.5% |
+
+  - **CDS windows of 200–750 nt on both genomes:** the downstream-SL share is flat (~52% I69, ~58% O10). The split-off SL share is lowest at 400–500. 500 is the smallest window that keeps the Ganot operon whole: its 403-bp CDS gap breaks it at 400, as Plessy's vignette noted. Larger windows add genes without improving either measure.
 - **Splitting.** [prev, choice, user] A `nosl` TSS on the same strand between the end of the previous gene and a gene's start codon means the gene has its own promoter, so a new operon starts there, however short the gap. This is `split_operons()`. The SL acceptor rule (section 4) applies.
 - **Benchmark.** [data, lit] On OKI2018_I69 v2.3 with the Okinawa CAGE consensus clusters, the Ganot et al. 2004 cyclin D3 operon (AJ628168) is recovered as one minus-strand operon at PAR:15956186–15967604: POC5 → IQCK → XPO7 (RBP16) → DYNLL2 → TUBD1 → MBF1 → CYCDC.
   - **Matches the literature:** Ganot's five genes are all there, in order, with the POC5 leader and IQCK that Plessy's analysis identified.
   - **Gaps:** 22–27 bp within the operon, against Ganot's 23–30 nt intercistronic regions.
   - **Neighbours:** PDCL3 upstream is split off by a `nosl` TSS of 783 reads.
   - **Robustness:** the result is the same for max gaps of 100–750 bp. Without the split it grows to 10 genes at 500 bp.
+  - **I69 EGAPx** (CDS 500): one operon of 8 genes, POC5 → an EGAPx "uncharacterized protein" model overlapping IQCK → IQCK → XPO7 → DYNLL2 → TUBD1 → MBF1 (EDF1 homolog) → CYCD3. Its CDS gaps reproduce Plessy's (362, 65, 148, 403, 122).
 - **Genome-wide.**
   - OKI: about 2,973 operons with 46.6% of genes, against 3,124 operons and about 49% in Plessy's vignette.
-  - O10 (current rules): 2,500 operons with 43.1% of genes.
+  - O10 (current defaults): 2,395 operons with 39.5% of genes.
+  - I69 EGAPx (current defaults): 2,455 operons with 42.4% of genes.
   - Against the v1.3 operon set: 84% of operonic genes shared, and 1,504 operons with identical gene lists (measured with the earlier rule set).
 
 ## 9. Input checks
@@ -203,17 +257,23 @@ So there are two independent switches:
   - **CDSs:** all unchanged. 17,646 of 17,686 proteins are identical to the v1.3 peptides; the other 40 differ only in how internal stops are written (`*` vs `.`).
   - **Later rule changes** (SL acceptor rule and window) were measured by re-running the 5' and operon scripts on that run's outputs, not by a new full run.
 - **OKI v2.3 operon benchmark:** see section 8.
+- **2026-10-18, I69 EGAPx + Okinawa CAGEr consensus clusters.** Full runs completed. Run directories are `/flash/LuscombeU/nico/utrannotation_runs/oki_I69_egapx` (clusters repackaged as cagescan output) and `oki_I69_egapx_bed` (the same CAGEr BEDs given directly as `tss` / `tss_sl`). Both give identical results.
+  - **5' ends:** 50.7% of 22,265 mRNAs get a CAGE TSS. 53.9% of those are `sl`, 97.3% of them with AG. 7,098 5' UTRs are trimmed and 3,999 extended: median 156 → 71 nt, mean 607 → 371 nt.
+  - **3' ends:** poly(A) reads 21.5%, PAS 53.5%, EGAPx 25.0%.
+  - **Non-coding:** 36.6% of 1,437 non-coding transcripts get a CAGE 5' end.
+- **2026-10-18, O10 rerun with the current defaults.** Completed. 65.0% of mRNAs get a CAGE TSS, 43.0% of those `sl` (98.7% AG). PAS ends 71.3%.
 - **Not yet tested:**
-  - the I25 and O10 EGAPx annotations (the O10 EGAPx run was still in progress);
-  - non-coding 5' ends (v1.3 has no lncRNAs);
+  - the I25 and O10 EGAPx annotations (I25 lacks I25-aligned CAGE; the O10 EGAPx run was still in progress);
+  - *Ciona* and *C. elegans*;
   - nf-tests (test data pending; see [development.md](development.md)).
 
 ## 11. Known limitations and open questions
 
-- **Tunicate dual-TSS genes.** Genes that make both trans-spliced and non-trans-spliced RNAs get one TSS per transcript model. The other form is recorded only as `sl_acceptor_peak` / `sl_acceptor_count`, and only when the chosen TSS is `nosl`. Making a second transcript model is a possible extension; KY2019 *Ciona* models do this [lit: Satou 2019].
+- **Tunicate dual-TSS genes.** Genes that make both trans-spliced and non-trans-spliced RNAs get one TSS per transcript model. The other form is recorded as `sl_acceptor_peak` or `nosl_tss_peak`. Making a second transcript model is a possible extension; KY2019 *Ciona* models do this [lit: Satou 2019].
+- **Operon gaps ignore UTRs.** CDS distances were more reliable than annotated UTR ends on both genomes tested. With accurate 3' ends (e.g. from poly(A)-site sequencing), `--operon_gap_from transcript` with `--operon_max_gap_tx 100` (or 60 for *O. dioica*) would measure the real intercistronic regions.
 - **Hybrid operons.** In *C. elegans* an operon can have an internal promoter and stay an operon [lit: Blumenthal 2012, 2015]. Our rule splits at any `nosl` TSS outside the SL window.
 - **The DE1/DE2 artefact.** The cause is unknown. Reported upstream as johannesnicolaus/cagescan_nextflow#4.
-- **PAS rules.** `--pas_offset 0` puts the end at the motif, not at the cleavage site. Chance AATAAA motifs are common in the AT-rich genome.
+- **PAS rules.** The motif and offset are general metazoan values, not measured in tunicates. Chance hexamer matches are common in any genome.
 - **`tss_evidence=EGAPx`** is written for kept ends even when the input annotation is not from EGAPx.
 - **Duplicate isoforms.** Isoforms that become identical after the edits are not merged.
 
@@ -229,12 +289,18 @@ So there are two independent switches:
 | 2026-10-18 | SL guard v1: 5 nt, only when the SL peak is stronger | `nosl` peaks at acceptors in the Osaka data. |
 | 2026-10-18 | SL guard v2: −2 always, plus 5 nt when stronger | 23 of the −2 artefact peaks were stronger than their SL peak. |
 | 2026-10-18 | SL acceptor rule v3: drop `nosl` anywhere downstream, and < 50 nt upstream (`--min_outron`) | User asked for a general rule; minimum outron length [Conrad 1991, 1995; Saito 2013]. |
-| 2026-10-18 | **SL acceptor rule v4: 5 nt upstream and 5 nt downstream (`--sl_window_up`, `--sl_window_down`); record `sl_acceptor_peak` when a `nosl` TSS wins** | Tunicates have genuine non-trans-spliced TSSs tens of nt upstream (*Ciona*, Matsumoto 2010) and downstream (*O. dioica* testis, Danks 2018) of acceptors. The *Ciona* TSS-seq studies' 51-nt minimum was a filter. The user preferred a conservative 5 nt. |
+| 2026-10-18 | SL acceptor rule v4: 5 nt upstream and 5 nt downstream (`--sl_window_up`, `--sl_window_down`); record `sl_acceptor_peak` when a `nosl` TSS wins | Tunicates have genuine non-trans-spliced TSSs tens of nt upstream (*Ciona*, Matsumoto 2010) and downstream (*O. dioica* testis, Danks 2018) of acceptors. The *Ciona* TSS-seq studies' 51-nt minimum was a filter. The user preferred a conservative 5 nt. |
+| 2026-10-18 | **Defaults for metazoans in general:** `--tss_selection auto`; `--pas_motifs AATAAA,ATTAAA`; `--pas_offset 15`; `nosl_tss_peak` recorded for `sl` TSSs | User asked for general defaults with notes for tunicates. Evidence: Tian & Graber 2012; Ganot 2004; O10 comparison of the selection modes. |
+| 2026-10-18 | **Generic TSS input:** `tss` (cagescan directory or BED) and `tss_sl` replace `cagescan_dir` | Most CAGE is single-end; cagescan needs pairs (issue #5 on cagescan_nextflow). |
+| 2026-10-18 | **Operon gaps:** kept CDS distances < 500 (`--operon_gap_from cds`); added `transcript` and `evidence` modes (`--operon_max_gap_tx 100`) | The user asked to use UTR-based gaps. Tested on I69 EGAPx and O10: UTR ends are too imprecise, giving less SL-consistent operons and breaking the Ganot operon. 500 is the smallest CDS window that keeps the Ganot operon whole. |
+| 2026-10-18 | Correction: *O. dioica* is not AT-rich (O10 41.4% GC) | The earlier rationale for the PAS rule wrongly said it was. |
 
 ## References
 
 All checked against PubMed unless noted.
 
+- Tian B, Graber JH (2012) Signals for pre-mRNA cleavage and polyadenylation. WIREs RNA 3:385–396. [doi:10.1002/wrna.116](https://doi.org/10.1002/wrna.116)
+- Mignone F, Gissi C, Liuni S, Pesole G (2002) Untranslated regions of mRNAs. Genome Biol 3:reviews0004. [doi:10.1186/gb-2002-3-3-reviews0004](https://doi.org/10.1186/gb-2002-3-3-reviews0004)
 - Blumenthal T (2004) Operons in eukaryotes. Brief Funct Genomic Proteomic 3:199–211. [doi:10.1093/bfgp/3.3.199](https://doi.org/10.1093/bfgp/3.3.199)
 - Blumenthal T (2012) Trans-splicing and operons in *C. elegans*. WormBook. [doi:10.1895/wormbook.1.5.2](https://doi.org/10.1895/wormbook.1.5.2)
 - Blumenthal T, Davis P, Garrido-Lecca A (2015) Operon and non-operon gene clusters in the *C. elegans* genome. WormBook. [doi:10.1895/wormbook.1.175.1](https://doi.org/10.1895/wormbook.1.175.1)

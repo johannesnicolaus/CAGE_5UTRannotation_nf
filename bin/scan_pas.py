@@ -23,7 +23,7 @@ def revcomp(seq):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--fasta", required=True)
-    parser.add_argument("--motifs", default="AATAAA", help="comma-separated DNA motifs (RNA sense)")
+    parser.add_argument("--motifs", default="AATAAA,ATTAAA", help="comma-separated DNA motifs (RNA sense)")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
