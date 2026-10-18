@@ -30,7 +30,11 @@ EGAPx models carry no TSS or trans-splicing information. Without long reads, the
 3. **Operons.** For genomes with spliced-leader CAGE data, same-strand genes closer than `--operon_max_gap` (500) bases are grouped into operons. A gene with its own non-SL TSS starts a new operon, however close it is to the previous gene. Genomes without a spliced leader get UTRs only.
 4. **UTR features.** Explicit `five_prime_UTR` and `three_prime_UTR` features are written, with evidence attributes. CDSs are never changed.
 
-The rules are adapted from the [annotationpolish](https://github.com/oist/LuscombeU_annotationpolish) R functions `add_five_prime_utr()` and `add_three_prime_utr()`. The 5' UTR labelling follows [LuscombeU_5primeanno](https://github.com/johannesnicolaus/LuscombeU_5primeanno) (`five_prime_UTR` with `tss_type=sl|nosl`). The old functions only extended UTRs, whereas this pipeline can also trim the over-extended EGAPx UTRs.
+This pipeline is based on the CAGE 5' UTR annotation workflow in [LuscombeU_5primeanno](https://github.com/johannesnicolaus/LuscombeU_5primeanno). That workflow added SL and non-SL CAGE 5' UTRs to *O. dioica* gene models that had none (OKI2018_I69, OSKA2016 and Bar2). This pipeline brings the same approach to EGAPx annotations, which already have UTRs, as an nf-core pipeline. The `five_prime_UTR` naming and the `tss_type=sl|nosl` labels come from that workflow.
+
+Other code it builds on:
+- The 5' and 3' rules are adapted from the [annotationpolish](https://github.com/oist/LuscombeU_annotationpolish) R functions `add_five_prime_utr()` and `add_three_prime_utr()`. Those functions only extended UTRs; this pipeline can also trim the over-extended EGAPx UTRs.
+- The operon rules come from annotationpolish's `calcOperons()` and `split_operons()`.
 
 Steps:
 
@@ -78,7 +82,7 @@ See [usage](docs/usage.md) for the parameters and [output](docs/output.md) for t
 
 luscombeu/utrannotation was originally written by Johannes Nicolaus Wibisana.
 
-The UTR rules come from the annotationpolish and LuscombeU_5primeanno code of the Luscombe Unit (OIST).
+It is based on the 5' UTR annotation workflow in [LuscombeU_5primeanno](https://github.com/johannesnicolaus/LuscombeU_5primeanno), and its UTR and operon rules come from [annotationpolish](https://github.com/oist/LuscombeU_annotationpolish); both are Luscombe Unit (OIST) code.
 
 ## Contributions and Support
 
