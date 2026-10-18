@@ -9,6 +9,7 @@ include { SCAN_PAS               } from '../modules/local/scan_pas/main'
 include { ANNOTATE_UTR5          } from '../modules/local/annotate_utr5/main'
 include { ANNOTATE_UTR3          } from '../modules/local/annotate_utr3/main'
 include { UTR_STATS              } from '../modules/local/utr_stats/main'
+include { ANNOTATE_OPERONS       } from '../modules/local/annotate_operons/main'
 include { AGAT_SPSTATISTICS      } from '../modules/nf-core/agat/spstatistics/main'
 include { AGAT_CONVERTSPGFF2GTF  } from '../modules/nf-core/agat/convertspgff2gtf/main'
 include { GFFREAD                } from '../modules/nf-core/gffread/main'
@@ -71,6 +72,20 @@ workflow UTRANNOTATION {
         ANNOTATE_UTR5.out.gff.join(SCAN_PAS.out.bed, failOnMismatch: true)
     )
     def ch_utr_gff = ANNOTATE_UTR3.out.gff
+
+    //
+    // MODULE: operons, only for genomes whose CAGE data have spliced-leader reads
+    // (without SL every TSS is nosl and would split every operon)
+    //
+    def ch_has_sl = PREPARE_INPUTS.out.cage.map { meta, _clusters, _counts, sl_counts -> [ meta, sl_counts ? true : false ] }
+    ANNOTATE_OPERONS(
+        ch_utr_gff
+            .join(CAGE_TSS_TABLE.out.tsv, failOnMismatch: true)
+            .join(ch_has_sl, failOnMismatch: true)
+            .filter { _meta, _gff, _tss, has_sl -> has_sl && !params.skip_operons }
+            .map { meta, gff, tss, _has_sl -> [ meta, gff, tss ] }
+    )
+    ch_multiqc_files = ch_multiqc_files.mix(ANNOTATE_OPERONS.out.mqc.map { _meta, file -> file })
 
     //
     // MODULE: UTR lengths and evidence, before and after

@@ -60,13 +60,13 @@
             "title": "5' UTR options",
             "type": "object",
             "fa_icon": "fas fa-arrow-right",
-            "description": "Choice of the CAGE TSS that becomes the 5' end of each coding mRNA.",
+            "description": "Choice of the CAGE TSS that becomes the 5' end of each transcript (5' UTR of coding mRNAs).",
             "properties": {
                 "tss_max_dist": {
                     "type": "integer",
                     "default": 500,
                     "minimum": 1,
-                    "description": "Maximum 5' UTR length, in bases along the transcript; TSSs further from the ATG are ignored.",
+                    "description": "Maximum 5' UTR length of coding mRNAs, and maximum 5' end move of non-coding transcripts, in bases along the transcript.",
                     "fa_icon": "fas fa-ruler-horizontal"
                 },
                 "tss_selection": {
@@ -87,6 +87,13 @@
                     "maximum": 1,
                     "description": "Minimum TSS count relative to the strongest TSS in the window, to ignore weak exonic CAGE peaks.",
                     "fa_icon": "fas fa-percent"
+                },
+                "tss_rel_whole_utr": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Compare `--tss_min_rel` with the strongest TSS anywhere in the EGAPx 5' UTR (also beyond `--tss_max_dist`), not only within the window.",
+                    "help_text": "With the default, a weak peak near the ATG cannot trim a 5' UTR whose strong TSS lies further away than `--tss_max_dist`; such mRNAs keep the EGAPx 5' end. Set to false to compare only with the peaks within `--tss_max_dist`.",
+                    "fa_icon": "fas fa-expand"
                 },
                 "tss_min_count": {
                     "type": "number",
@@ -109,6 +116,12 @@
                     "maximum": 1,
                     "description": "Minimum fraction of spliced-leader READ1s for a TSS to be labelled `sl` instead of `nosl`.",
                     "fa_icon": "fas fa-tag"
+                },
+                "tss_noncoding": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Also move the 5' end of lncRNAs and other non-coding transcripts (EGAPx misc_RNA) to the strongest CAGE TSS within `--tss_max_dist` of their EGAPx 5' end.",
+                    "fa_icon": "fas fa-scroll"
                 }
             }
         },
@@ -144,6 +157,40 @@
                     "minimum": 0,
                     "description": "Bases from the end of the motif to the new 3' end (cleavage is ~10-30 nt downstream of AATAAA).",
                     "fa_icon": "fas fa-arrows-alt-h"
+                }
+            }
+        },
+        "operon_options": {
+            "title": "Operon options",
+            "type": "object",
+            "fa_icon": "fas fa-link",
+            "description": "Operons: runs of closely spaced same-strand genes, split before genes with a non-SL TSS. Run only for genomes whose cagescan results include spliced-leader counts.",
+            "properties": {
+                "skip_operons": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Do not annotate operons.",
+                    "fa_icon": "fas fa-forward"
+                },
+                "operon_max_gap": {
+                    "type": "integer",
+                    "default": 500,
+                    "minimum": 0,
+                    "description": "Same-strand genes closer than this (intergenic bases, after UTR annotation) are grouped into one operon.",
+                    "fa_icon": "fas fa-ruler-horizontal"
+                },
+                "operon_split_min_count": {
+                    "type": "number",
+                    "default": 0,
+                    "minimum": 0,
+                    "description": "Minimum pooled count of a non-SL TSS that splits an operon before the downstream gene.",
+                    "fa_icon": "fas fa-cut"
+                },
+                "operon_biotypes": {
+                    "type": "string",
+                    "default": "protein_coding",
+                    "description": "Comma-separated gene_biotype values of the genes grouped into operons, or `all`.",
+                    "fa_icon": "fas fa-filter"
                 }
             }
         },
@@ -317,6 +364,9 @@
         },
         {
             "$ref": "#/$defs/utr3_options"
+        },
+        {
+            "$ref": "#/$defs/operon_options"
         },
         {
             "$ref": "#/$defs/institutional_config_options"

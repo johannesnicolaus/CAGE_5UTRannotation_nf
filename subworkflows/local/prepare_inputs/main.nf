@@ -68,7 +68,7 @@ def cagescanTssFiles(meta, cagescan_dir, cluster_set) {
         }
     }
     if (!sl_counts.exists()) {
-        log.info("Sample '${meta.id}': no spliced-leader counts in ${dir}; every TSS will be labelled nosl.")
+        log.info("Sample '${meta.id}': no spliced-leader counts in ${dir}; every TSS will be labelled nosl and operons are not annotated.")
     }
     return [ meta, clusters, counts, sl_counts.exists() ? sl_counts : [] ]
 }

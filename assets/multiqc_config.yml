@@ -8,6 +8,8 @@ report_section_order:
     order: 20
   utr3_length:
     order: 10
+  operon_summary:
+    order: 5
   "luscombeu-utrannotation-methods-description":
     order: -1000
   software_versions:

@@ -13,6 +13,11 @@ Initial release of luscombeu/utrannotation, created with the [nf-core](https://n
 - 3' UTRs from an evidence hierarchy: EGAPx poly(A)-read evidence, then the polyadenylation signal closest to the EGAPx end within `--pas_window`, then the EGAPx end.
 - Explicit `five_prime_UTR` / `three_prime_UTR` features with evidence attributes; GTF and transcript / protein FASTA of the result.
 - UTR statistics before and after (MultiQC table and length distributions), and AGAT statistics.
+- CAGE 5' ends for lncRNAs and misc_RNAs (strongest TSS within `--tss_max_dist` of the EGAPx 5' end; `--tss_noncoding`).
+- `--tss_rel_whole_utr` (default on): the `--tss_min_rel` noise filter compares with the strongest TSS in the whole EGAPx 5' UTR.
+- 3' ends no longer extend into the next same-strand transcript (operon neighbours).
+- Input checks: annotation sequences must be in the genome, and TSSs must lie on genome sequences.
+- Operons (`ANNOTATE_OPERONS`) for genomes with spliced-leader CAGE data. Same-strand genes closer than `--operon_max_gap` (500, as in Plessy et al. 2024) are grouped, and a gene with its own non-SL TSS starts a new operon. On OKI2018_I69 with the Okinawa CAGE clusters, this recovers the Ganot et al. 2004 cyclin D3 operon (XPO7/RBP16, DYNLL2, TUBD1, MBF1, CYCDC) with the POC5 leader and IQCK, for maximum gaps from 100 to 750 bp.
 
 ### `Fixed`
 

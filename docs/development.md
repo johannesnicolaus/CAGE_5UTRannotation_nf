@@ -41,6 +41,17 @@ A small, self-contained data set:
 - [ ] `--pas_offset`
 - [ ] 3'-partial model left alone
 
+5' end of non-coding transcripts:
+
+- [ ] lncRNA / misc_RNA 5' end extended and trimmed; minimum remaining length
+- [ ] `--tss_noncoding false`
+
+Operons (`ANNOTATE_OPERONS`):
+
+- [ ] Ganot et al. 2004 cyclin D3 operon (AJ628168) recovered as one operon. On OKI2018_I69 v2.3 with the old OKItoOKI consensus clusters, `bin/annotate_operons.py` gives PAR:15956186-15967604(-): POC5, IQCK, XPO7, DYNLL2, TUBD1, MBF1, CYCDC. PDCL3 is split off by a non-SL TSS of 783 reads.
+- [ ] genome without SL counts: no operon step
+- [ ] `--skip_operons`
+
 Whole pipeline:
 
 - [ ] proteins from `<id>.utr.proteins.fasta` identical to EGAPx `complete.proteins.faa`

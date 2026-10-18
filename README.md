@@ -18,7 +18,7 @@
 
 EGAPx models carry no TSS or trans-splicing information. Without long reads, their UTRs come from short-read coverage only and are often over-extended. For each coding mRNA, the pipeline does the following:
 
-1. **5' end: moved to a CAGE TSS.**
+1. **5' end: moved to a CAGE TSS.** lncRNAs and misc_RNAs also get a CAGE 5' end, using the strongest TSS near their EGAPx 5' end.
    - It uses the dominant CTSS of a cagescan TSS cluster within `--tss_max_dist` (500) bases of the ATG.
    - By default it takes the TSS closest to the ATG among peaks at least `--tss_min_rel` (10%) as strong as the strongest one in the window. For trans-spliced genes, this is the SL acceptor rather than the outron TSS. `--tss_selection dominant` takes the strongest peak instead.
    - The TSS is labelled `sl` (spliced-leader acceptor) or `nosl` from the fraction of SL reads in the cluster. Datasets without an SL table are all `nosl`.
@@ -27,7 +27,8 @@ EGAPx models carry no TSS or trans-splicing information. Without long reads, the
    - (i) It keeps the EGAPx end when EGAPx found poly(A)-tail reads.
    - (ii) Otherwise it moves to the polyadenylation signal (`AATAAA`) closest to the EGAPx end, within `--pas_window` (500) bases.
    - (iii) Otherwise it keeps the EGAPx end.
-3. **UTR features.** Explicit `five_prime_UTR` and `three_prime_UTR` features are written, with evidence attributes. CDSs are never changed.
+3. **Operons.** For genomes with spliced-leader CAGE data, same-strand genes closer than `--operon_max_gap` (500) bases are grouped into operons. A gene with its own non-SL TSS starts a new operon, however close it is to the previous gene. Genomes without a spliced leader get UTRs only.
+4. **UTR features.** Explicit `five_prime_UTR` and `three_prime_UTR` features are written, with evidence attributes. CDSs are never changed.
 
 The rules are adapted from the [annotationpolish](https://github.com/oist/LuscombeU_annotationpolish) R functions `add_five_prime_utr()` and `add_three_prime_utr()`. The 5' UTR labelling follows [LuscombeU_5primeanno](https://github.com/johannesnicolaus/LuscombeU_5primeanno) (`five_prime_UTR` with `tss_type=sl|nosl`). The old functions only extended UTRs, whereas this pipeline can also trim the over-extended EGAPx UTRs.
 
@@ -36,7 +37,7 @@ Steps:
 1. Uncompress the inputs and find the TSS cluster files in the cagescan results directory.
 2. Build a TSS table with SL labels (`CAGE_TSS_TABLE`).
 3. Scan the genome for polyadenylation signals (`SCAN_PAS`).
-4. Annotate 5' UTRs (`ANNOTATE_UTR5`), then 3' UTRs (`ANNOTATE_UTR3`).
+4. Annotate 5' UTRs (`ANNOTATE_UTR5`), then 3' UTRs (`ANNOTATE_UTR3`), then operons (`ANNOTATE_OPERONS`).
 5. Compute UTR statistics before and after (`UTR_STATS`, [`AGAT`](https://github.com/NBISweden/AGAT)).
 6. Produce the GTF ([`AGAT`](https://github.com/NBISweden/AGAT)) and transcript and protein FASTA ([`gffread`](https://github.com/gpertea/gffread)).
 7. Build the report ([`MultiQC`](http://multiqc.info/)).

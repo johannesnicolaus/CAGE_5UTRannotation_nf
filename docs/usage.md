@@ -45,21 +45,34 @@ A cluster is labelled `sl` when SL reads make up at least `--sl_min_fraction` (d
 
 ## How UTRs are assigned
 
-Only `mRNA` features with a CDS are changed. lncRNAs, pseudogenes and other transcripts are copied unchanged.
+Coding `mRNA`s get new 5' and 3' ends. Non-coding transcripts (lncRNAs and EGAPx misc_RNA `transcript` features) get a new 5' end only. Pseudogenes are copied unchanged.
 
-### 5' end (`ANNOTATE_UTR5`)
+Before anything is changed, the pipeline checks the inputs. It stops if annotation sequences are missing from the genome, or if TSSs lie on sequences or positions the genome does not have; both mean cagescan was run on another assembly.
+
+### 5' end of coding mRNAs (`ANNOTATE_UTR5`)
 
 1. **Candidates.** TSS peaks on the transcript's strand qualify if:
    - they give a 5' UTR of `--utr5_min_len` to `--tss_max_dist` bases, counted along the transcript (5' UTR exons, then the genome upstream of the EGAPx 5' end);
    - they are not in a 5' UTR intron;
    - the new 5' end does not overlap a CDS of another gene on the same strand.
-2. **Noise filter.** Peaks below `--tss_min_count` or below `--tss_min_rel` × the strongest candidate are dropped. CAGE "exon painting" (recapping or degradation) leaves weak peaks inside exons, and these would otherwise be picked as closest to the ATG.
+2. **Noise filter.** Peaks below `--tss_min_count` are dropped, and so are peaks below `--tss_min_rel` × the strongest reference peak. CAGE "exon painting" (recapping or degradation) leaves weak peaks inside exons, and these would otherwise be picked as closest to the ATG.
+   - By default the reference is every peak in the EGAPx 5' UTR, also beyond `--tss_max_dist`, plus the candidates. Without this, a weak peak near the ATG could trim a UTR whose strong TSS lies further away; such mRNAs now keep the EGAPx 5' end.
+   - `--tss_rel_whole_utr false` compares with the candidates only.
 3. **Choice.**
    - `--tss_selection closest_atg` (default) takes the shortest UTR. In trans-spliced genes the mature 5' end is the SL acceptor, downstream of the outron TSS, so this picks the acceptor.
    - `--tss_selection dominant` takes the highest count.
    - Ties prefer `nosl`.
 4. **Edit.** Exons upstream of the TSS are dropped and the first exon starts at the TSS, so the EGAPx 5' UTR is **extended or trimmed**. Gene bounds follow. CDSs are never changed.
-5. **Unchanged models.** Models without a qualifying TSS, and models open at the 5' end (EGAPx `partial`), keep the EGAPx 5' end (`utr5_evidence=EGAPx`).
+5. **Unchanged models.** Models without a qualifying TSS, and models open at the 5' end (EGAPx `partial`), keep the EGAPx 5' end (`tss_evidence=EGAPx`).
+6. **TSS at the ATG.** A TSS may sit at the ATG itself (`--utr5_min_len 0`), as SL acceptors often do. The mRNA then has no `five_prime_UTR` row but still carries the TSS attributes.
+
+### 5' end of non-coding transcripts
+
+lncRNAs and misc_RNAs have no ATG, so the rule is different:
+- **Candidates:** peaks within `--tss_max_dist` of the EGAPx 5' end. Upstream peaks count along the genome; downstream peaks count along the exons and must leave at least 100 bases of transcript. The same intron and CDS rules apply.
+- **Choice:** the peak with the highest count, with ties going to the smallest move.
+- **Labels:** `tss_type`, the acceptor row and the AG check work as for mRNAs.
+- **Switch:** `--tss_noncoding false` leaves non-coding transcripts unchanged.
 
 ### 3' end (`ANNOTATE_UTR3`)
 
@@ -70,12 +83,26 @@ The first rule that applies sets the 3' end:
    - lies after the stop codon;
    - is within `--pas_window` bases of the EGAPx 3' end, measured along the transcript;
    - is not in a 3' UTR intron;
-   - does not reach a CDS of another gene on the same strand.
+   - does not reach a CDS of another gene on the same strand;
+   - does not extend the transcript into another gene's transcript on the same strand. In operons, the 3' end stops before the next gene's 5' end, which the 5' step has already set. Overlaps already present in EGAPx are left alone.
 
    The motif **closest to the EGAPx end** is used, so short-read coverage places the end and the motif sets the base. The new end is the motif end + `--pas_offset`; cleavage is usually 10-30 nt downstream of AATAAA. The 3' UTR is trimmed or extended.
 3. **`EGAPx`.** No signal qualified, and the EGAPx 3' end is kept.
 
 The *O. dioica* genome is AT-rich, so AATAAA also occurs by chance. `utr3_evidence` and the UTR statistics show how many ends each rule set.
+
+## Operons (`ANNOTATE_OPERONS`)
+
+Operons are annotated only for genomes whose cagescan results include spliced-leader counts, i.e. cagescan was run with `--sl_sequence` and found SL reads. Genomes without SL trans-splicing get UTRs but no operons. `--skip_operons` switches the step off for every genome.
+
+1. **Genes.** Genes of `--operon_biotypes` (default `protein_coding`) are taken with their ends after UTR annotation. Genes without a `gene_biotype` count as protein-coding when they have a CDS. Genes on the other strand are ignored, so nested or interleaved genes do not interrupt an operon (as `calcOperons()` in annotationpolish).
+2. **Grouping.** A gene joins the operon of the gene before it, in transcription order, when the intergenic distance is below `--operon_max_gap` bases. The distance runs from the 3'-most end of the operon so far to the 5' end of the gene. Overlapping genes join.
+3. **Splitting.** A non-SL (`nosl`) TSS on the same strand, between the end of the previous gene and a gene's start codon, starts a new operon at that gene, however short the intergenic distance: the gene has its own promoter (as `split_operons()`). `--operon_split_min_count` sets the minimum count of such a TSS.
+4. **Size.** Runs of at least two genes are reported.
+
+In true operons the downstream genes are trans-spliced. The MultiQC table therefore reports:
+- the share of downstream genes with an SL TSS between them and the previous gene;
+- the same share for the genes that were split off.
 
 ## Parameters
 
@@ -84,9 +111,11 @@ All parameters, with defaults, are in the [parameter schema](../nextflow_schema.
 | Parameter               | Default       | Meaning                                                              |
 | ----------------------- | ------------- | -------------------------------------------------------------------- |
 | `--cluster_set`         | `broad`       | cagescan cluster set (`broad` or `sharp`)                            |
-| `--tss_max_dist`        | `500`         | maximum 5' UTR length (bases along the transcript)                   |
+| `--tss_max_dist`        | `500`         | maximum 5' UTR length (non-coding: maximum 5' end move), along the transcript |
 | `--tss_selection`       | `closest_atg` | `closest_atg` or `dominant`                                          |
-| `--tss_min_rel`         | `0.1`         | minimum count relative to the strongest TSS in the window            |
+| `--tss_min_rel`         | `0.1`         | minimum count relative to the strongest TSS (see `--tss_rel_whole_utr`) |
+| `--tss_rel_whole_utr`   | `true`        | reference for `--tss_min_rel`: the whole EGAPx 5' UTR, not only the window |
+| `--tss_noncoding`       | `true`        | also move the 5' end of lncRNAs and misc_RNAs                        |
 | `--tss_min_count`       | `0`           | minimum pooled TSS count                                             |
 | `--utr5_min_len`        | `0`           | minimum 5' UTR length (0: a TSS at the ATG is allowed)               |
 | `--sl_min_fraction`     | `0.5`         | minimum SL read fraction for `tss_type=sl`                           |
@@ -94,6 +123,10 @@ All parameters, with defaults, are in the [parameter schema](../nextflow_schema.
 | `--pas_motifs`          | `AATAAA`      | comma-separated polyadenylation-signal motifs                        |
 | `--pas_window`          | `500`         | maximum distance of the signal from the EGAPx 3' end                 |
 | `--pas_offset`          | `0`           | bases from the motif end to the 3' end                               |
+| `--skip_operons`        | `false`       | do not annotate operons                                              |
+| `--operon_max_gap`      | `500`         | same-strand genes closer than this are grouped into operons          |
+| `--operon_split_min_count` | `0`        | minimum count of a non-SL TSS that splits an operon                  |
+| `--operon_biotypes`     | `protein_coding` | gene biotypes grouped into operons (`all` for every gene)        |
 
 ## Running the pipeline
 

@@ -21,7 +21,7 @@ BINS = [(0, 0, "0"), (1, 50, "1-50"), (51, 100, "51-100"), (101, 200, "101-200")
         (501, 1000, "501-1000"), (1001, None, ">1000")]
 
 COLUMNS = ["transcript_id", "gene_id", "seqid", "strand",
-           "utr5_len_egapx", "utr5_len", "utr5_evidence", "tss_type", "tss_id", "tss_peak", "tss_count",
+           "utr5_len_egapx", "utr5_len", "tss_evidence", "tss_type", "tss_id", "tss_peak", "tss_count",
            "sl_fraction", "acceptor_AG",
            "utr3_len_egapx", "utr3_len", "utr3_evidence", "pas_motif", "pas_pos"]
 
@@ -67,8 +67,12 @@ def main():
     args = parser.parse_args()
 
     before = {t.id: t.utr_lengths() for _, t in Annotation.read(args.before).coding_transcripts()}
+    after = Annotation.read(args.after)
+    noncoding = [t for _, t in after.noncoding_transcripts()]
+    nc_cage = [t for t in noncoding if t.feature.get("tss_evidence") == "CAGE"]
+    nc_sl = [t for t in nc_cage if t.feature.get("tss_type") == "sl"]
     rows = []
-    for gene, t in Annotation.read(args.after).coding_transcripts():
+    for gene, t in after.coding_transcripts():
         f = t.feature
         utr5, utr3 = t.utr_lengths()
         utr5_0, utr3_0 = before.get(t.id, (None, None))
@@ -84,7 +88,7 @@ def main():
             out.write("\t".join("NA" if row.get(c) is None else str(row[c]) for c in COLUMNS) + "\n")
 
     n = len(rows)
-    cage = [r for r in rows if r.get("utr5_evidence") == "CAGE"]
+    cage = [r for r in rows if r.get("tss_evidence") == "CAGE"]
     sl = [r for r in cage if r.get("tss_type") == "sl"]
     sl_ag = [r for r in sl if r.get("acceptor_AG") == "true"]
     shifted5 = [r for r in cage if r["utr5_len_egapx"] is not None]
@@ -104,11 +108,13 @@ def main():
               "5' UTR extended", "5' UTR trimmed",
               "5' UTR median EGAPx", "5' UTR median", "5' UTR mean EGAPx", "5' UTR mean",
               "3' polyA reads (%)", "3' PAS (%)", "3' EGAPx (%)", "3' UTR extended", "3' UTR trimmed",
-              "3' UTR median EGAPx", "3' UTR median", "3' UTR mean EGAPx", "3' UTR mean"]
+              "3' UTR median EGAPx", "3' UTR median", "3' UTR mean EGAPx", "3' UTR mean",
+              "Non-coding transcripts", "Non-coding CAGE TSS (%)", "Non-coding SL TSS (% of CAGE)"]
     values = [args.prefix, n, pct(len(cage), n), pct(len(sl), len(cage)), pct(len(sl_ag), len(sl)),
               ext5, trim5, med5_0, med5, mean5_0, mean5,
               pct(ev3["polyA_reads"], n), pct(ev3["PAS"], n), pct(ev3["EGAPx"], n), ext3, trim3,
-              med3_0, med3, mean3_0, mean3]
+              med3_0, med3, mean3_0, mean3,
+              len(noncoding), pct(len(nc_cage), len(noncoding)), pct(len(nc_sl), len(nc_cage))]
     with open(f"{args.prefix}.utr_summary_mqc.tsv", "w") as out:
         out.write("# id: 'utr_summary'\n")
         out.write("# section_name: 'UTR annotation'\n")

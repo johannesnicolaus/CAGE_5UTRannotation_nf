@@ -13,8 +13,11 @@ that applies sets the 3' end:
                 - entirely downstream of the stop codon,
                 - within --window bases of the EGAPx 3' end, measured along the transcript
                   (3' UTR exons inside the model, genomic sequence beyond it),
-                - not in a 3' UTR intron and not reaching a CDS of another gene on the
-                  same strand.
+                - not in a 3' UTR intron, not reaching a CDS of another gene on the same
+                  strand, and not extending the transcript into another gene's transcript
+                  on the same strand (in operons the 3' end stops before the next gene's
+                  5' end, which ANNOTATE_UTR5 has already set; overlaps already present
+                  in EGAPx are not counted).
                 The motif closest to the EGAPx end is used, and the new 3' end is the
                 motif end + --offset bases (cleavage lies ~10-30 nt downstream of AATAAA).
                 The 3' UTR is trimmed or extended.
@@ -46,7 +49,7 @@ def read_pas(path):
     return PointIndex(items)
 
 
-def pas_candidates(t, gene_id, pas_index, cds_index, window, offset):
+def pas_candidates(t, gene_id, pas_index, cds_index, tx_index, window, offset):
     """(new_end, signed shift along the transcript, motif) for every qualifying PAS."""
     exons = t.exon_intervals()
     cds_start, cds_end = t.cds_bounds()
@@ -55,9 +58,10 @@ def pas_candidates(t, gene_id, pas_index, cds_index, window, offset):
     if t.strand == "+":
         end0 = exons[-1][1]
         limit = end0 + window
-        blockers = cds_index.overlaps(key, end0 + 1, limit, exclude_owner=gene_id)
+        blockers = [s for s, _, _ in cds_index.overlaps(key, end0 + 1, limit, exclude_owner=gene_id)]
+        blockers += [s for s, _, _ in tx_index.overlaps(key, end0 + 1, limit, exclude_owner=gene_id) if s > end0]
         if blockers:
-            limit = min(s for s, _, _ in blockers) - 1
+            limit = min(blockers) - 1
         for ms, (_, me, motif) in pas_index.window(t.seqid, "+", cds_end + 1, limit):
             new_end = me + offset
             i = containing_interval(exons, ms)
@@ -75,9 +79,10 @@ def pas_candidates(t, gene_id, pas_index, cds_index, window, offset):
     else:
         end0 = exons[0][0]
         limit = end0 - window
-        blockers = cds_index.overlaps(key, limit, end0 - 1, exclude_owner=gene_id)
+        blockers = [e for _, e, _ in cds_index.overlaps(key, limit, end0 - 1, exclude_owner=gene_id)]
+        blockers += [e for _, e, _ in tx_index.overlaps(key, limit, end0 - 1, exclude_owner=gene_id) if e < end0]
         if blockers:
-            limit = max(e for _, e, _ in blockers) + 1
+            limit = max(blockers) + 1
         for ms, (_, me, motif) in pas_index.window(t.seqid, "-", limit, cds_start - 1):
             if me >= cds_start:
                 continue
@@ -122,6 +127,7 @@ def main():
     ann = Annotation.read(args.gff)
     pas_index = read_pas(args.pas)
     cds_index = ann.cds_index()
+    tx_index = ann.transcript_index()
 
     stats = collections.Counter()
     for gene, t in ann.coding_transcripts():
@@ -135,7 +141,7 @@ def main():
             stats["polyA_reads"] += 1
             f.set("utr3_evidence", "polyA_reads")
             continue
-        cands = pas_candidates(t, gene.feature.id, pas_index, cds_index, args.window, args.offset)
+        cands = pas_candidates(t, gene.feature.id, pas_index, cds_index, tx_index, args.window, args.offset)
         if not cands:
             stats["EGAPx"] += 1
             f.set("utr3_evidence", "EGAPx")

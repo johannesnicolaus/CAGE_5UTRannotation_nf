@@ -23,6 +23,10 @@ TSA = "trans_splice_acceptor_site"
 # UTR rows are always regenerated from exons and CDS, so any in the input are dropped.
 DERIVED_TYPES = {UTR5, UTR3, "5'UTR", "3'UTR", "five_prime_utr", "three_prime_utr"}
 
+# Non-coding transcript types whose 5' end is also moved to a CAGE TSS ('transcript' is
+# EGAPx's misc_RNA: non-coding variants of protein-coding genes).
+NONCODING_TSS_TYPES = {"lncRNA", "transcript", "ncRNA"}
+
 TRANSCRIPT_TYPES = {"mRNA", "transcript", "lncRNA", "ncRNA", "primary_transcript", "snRNA", "snoRNA", "rRNA", "tRNA"}
 
 # Reserved characters that must be escaped in GFF3 attribute values (column 9).
@@ -249,6 +253,22 @@ class Annotation:
         for gene, t in self.transcripts():
             if t.feature.type == "mRNA" and t.is_coding and t.exons:
                 yield gene, t
+
+    def noncoding_transcripts(self):
+        for gene, t in self.transcripts():
+            if t.feature.type in NONCODING_TSS_TYPES and not t.is_coding and t.exons:
+                yield gene, t
+
+    def transcript_index(self):
+        """Per (seqid, strand): transcript spans with their gene ID."""
+        index = collections.defaultdict(list)
+        for gene, t in self.transcripts():
+            if t.exons:
+                index[(t.seqid, t.strand)].append((t.feature.start, t.feature.end, gene.feature.id))
+        return IntervalIndex(index)
+
+    def seqids(self):
+        return {t.seqid for _, t in self.transcripts()}
 
     def cds_index(self):
         """Per (seqid, strand): sorted CDS intervals with their gene ID."""
