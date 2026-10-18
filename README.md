@@ -73,7 +73,7 @@ nextflow run luscombeu/utrannotation \
    --outdir <OUTDIR>
 ```
 
-See [usage](docs/usage.md) for the parameters and [output](docs/output.md) for the results and GFF3 attributes.
+See [usage](docs/usage.md) for the parameters, [output](docs/output.md) for the results and GFF3 attributes, and [rationale](docs/rationale.md) for why each rule and default was chosen, with the evidence and a decision log.
 
 > [!WARNING]
 > Please provide pipeline parameters via the CLI or Nextflow `-params-file` option. Custom config files including those provided by the `-c` Nextflow option can be used to provide any configuration _**except for parameters**_; see [docs](https://nf-co.re/docs/running/run-pipelines#using-parameter-files).

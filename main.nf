@@ -19,7 +19,8 @@ params {
     tss_min_count       : Float   = 0.0
     utr5_min_len        : Integer = 0
     sl_min_fraction     : Float   = 0.5
-    min_outron          : Integer = 50
+    sl_window_up        : Integer = 5
+    sl_window_down      : Integer = 5
     keep_polya_evidence : Boolean = true
     pas_window          : Integer = 500
     pas_offset          : Integer = 0

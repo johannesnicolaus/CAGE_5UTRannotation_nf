@@ -123,13 +123,21 @@
                     "description": "Also move the 5' end of lncRNAs and other non-coding transcripts (EGAPx misc_RNA) to the strongest CAGE TSS within `--tss_max_dist` of their EGAPx 5' end.",
                     "fa_icon": "fas fa-scroll"
                 },
-                "min_outron": {
+                "sl_window_up": {
                     "type": "integer",
-                    "default": 50,
-                    "minimum": 0,
-                    "description": "SL acceptor rule: non-SL TSSs downstream of a qualifying SL acceptor (inside the mature mRNA), or fewer than this many bases upstream of it, are ignored when choosing a transcript's TSS and when splitting operons.",
-                    "help_text": "An outron (the pre-mRNA stretch from the TSS to the trans-splice acceptor, removed by trans-splicing) must be long enough for splicing: synthetic outrons of 51 nt or more are trans-spliced efficiently (Conrad et al. 1995) and an acceptor with 30 nt upstream was not used (Conrad et al. 1991). A non-SL TSS closer than this to an SL acceptor cannot start that acceptor's outron. 0 keeps only the downstream part of the rule.",
-                    "fa_icon": "fas fa-ruler"
+                    "default": 5,
+                    "minimum": -1,
+                    "description": "SL acceptor rule: non-SL TSSs up to this many bases upstream of a qualifying SL acceptor are ignored when choosing a transcript's TSS and when splitting operons (-1: no limit).",
+                    "help_text": "Within a few bases of an acceptor, non-SL peaks are SL reads without a recognisable leader (e.g. reads that keep only the leader's final AG map to the A of the acceptor AG, 2 nt upstream). Further away, tunicates have genuine non-trans-spliced TSSs a few tens of nt upstream (Ciona; Matsumoto et al. 2010) or downstream (O. dioica testis; Danks et al. 2018) of acceptors, so the default window is kept small. See docs/rationale.md.",
+                    "fa_icon": "fas fa-arrow-up"
+                },
+                "sl_window_down": {
+                    "type": "integer",
+                    "default": 5,
+                    "minimum": -1,
+                    "description": "SL acceptor rule: non-SL TSSs up to this many bases downstream of a qualifying SL acceptor (inside the mature mRNA) are ignored when choosing a transcript's TSS and when splitting operons (-1: the whole 5' UTR).",
+                    "help_text": "Within a few bases of an acceptor, non-SL peaks are SL reads without a recognisable leader (e.g. reads that keep only the leader's final AG map to the A of the acceptor AG, 2 nt upstream). Further away, tunicates have genuine non-trans-spliced TSSs a few tens of nt upstream (Ciona; Matsumoto et al. 2010) or downstream (O. dioica testis; Danks et al. 2018) of acceptors, so the default window is kept small. See docs/rationale.md.",
+                    "fa_icon": "fas fa-arrow-down"
                 }
             }
         },

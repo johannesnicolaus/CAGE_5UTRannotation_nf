@@ -68,24 +68,17 @@ Before anything is changed, the pipeline checks the inputs. It stops if annotati
    - Ties prefer `nosl`.
 4. **Edit.** Exons upstream of the TSS are dropped and the first exon starts at the TSS, so the EGAPx 5' UTR is **extended or trimmed**. Gene bounds follow. CDSs are never changed.
 5. **Unchanged models.** Models without a qualifying TSS, and models open at the 5' end (EGAPx `partial`), keep the EGAPx 5' end (`tss_evidence=EGAPx`).
-6. **SL acceptor rule.** When an SL peak passes the count filters (a "qualifying acceptor"), non-SL peaks are not TSS candidates if they are:
-   - **downstream of the acceptor**, between it and the ATG. They lie inside the mature trans-spliced mRNA, so they say nothing against trans-splicing: their 5' ends can come from capped fragments of the mature mRNA (Fejes-Toth et al. 2009 found CAGE 5' ends inside mature mRNAs) or from scatter of 5' ends;
-   - **fewer than `--min_outron` (50) bases upstream of it**, too close to start an outron.
+6. **SL acceptor rule.** When an SL peak passes the count filters (a "qualifying acceptor"), non-SL peaks up to `--sl_window_up` (5) bases upstream or `--sl_window_down` (5) bases downstream of it are not TSS candidates. They are taken as SL reads without a recognisable leader.
+   - **Osaka data:** 104 of the 142 non-SL clusters within 5 bp of an SL cluster sit exactly 2 nt upstream, on the A of the acceptor AG. At the two sites inspected, their reads keep only the leader's final AG and come almost only from the DE1 and DE2 libraries.
+   - **Why only 5 bp:** further away, non-SL TSSs can be genuine in tunicates.
+     - In *Ciona*, 38 of 107 genes that make both trans-spliced and non-trans-spliced RNAs have the non-trans-spliced TSS just upstream of the acceptor in the same exon, 36 bp on average (Matsumoto et al. 2010).
+     - Some *Ciona* TSS clusters even overlap acceptors (Yokomori et al. 2016).
+     - In *O. dioica* testis, 89 male-specific promoters start transcription about 40-50 nt downstream of a trans-splice site, giving mRNAs without the acceptor (Danks et al. 2018).
+   - **Wider windows:** `--sl_window_up 50` applies the minimum outron length of nematode experiments (Conrad et al. 1995). `--sl_window_down -1` ignores every non-SL peak inside the mature trans-spliced mRNA.
+   - **What is kept when a non-SL TSS wins:** when the chosen TSS is non-SL but the transcript also has a qualifying SL acceptor, that acceptor is recorded (`sl_acceptor_peak`, `sl_acceptor_count`). The transcript is then marked as also making trans-spliced RNA.
+   - **Effect on O10:** the defaults label 11 more mRNAs `sl`, and 172 `nosl` mRNAs record an SL acceptor.
 
-   **What an outron is.** The outron is the pre-mRNA stretch from the TSS to the trans-splice acceptor, which trans-splicing removes (Conrad et al. 1991). It must be long enough to be spliced:
-   - synthetic outrons of 51 nt or more are trans-spliced efficiently (Conrad et al. 1995);
-   - an acceptor with only 30 nt upstream was not used (Conrad et al. 1991);
-   - natural *C. elegans* outrons have a 10th percentile of 59 nt (Saito et al. 2013).
-
-   **What the zone holds in the Osaka cagescan data.**
-   - 104 non-SL clusters sit exactly 2 nt upstream of an SL peak, on the A of the acceptor AG.
-   - At the two sites inspected, their reads carry only the leader's final AG and come almost only from the DE1 and DE2 libraries.
-   - Non-SL peaks are also enriched about threefold between 6 and 60 nt upstream of acceptors, again leaning towards the DE libraries.
-
-   **Consequences.**
-   - A transcript with a qualifying SL acceptor is labelled `sl`. The SL reads, which carry the leader joined to the transcript at that base, prove that it is trans-spliced. A non-SL peak downstream of the acceptor does not make the gene non-trans-spliced.
-   - A non-SL peak `--min_outron` or more upstream is kept: it is a plausible outron start, i.e. the promoter. It is not chosen with `closest_atg`, but it can win with `--tss_selection dominant`, and it splits operons.
-   - On the O10 annotation the rule labels 183 more mRNAs `sl` (181 with an AG acceptor) and removes 219 operon splits. After it, 7% of the genes split off an operon have an SL TSS, against 20% before.
+   The reasoning and the evidence for every rule are collected in [rationale.md](rationale.md).
 7. **TSS at the ATG.** A TSS may sit at the ATG itself (`--utr5_min_len 0`), as SL acceptors often do. The mRNA then has no `five_prime_UTR` row but still carries the TSS attributes.
 
 ### 5' end of non-coding transcripts
@@ -129,7 +122,7 @@ When cagescan searched for several leaders (`--sl_sequence SL1=...,SL2=...`), ea
 
 1. **Genes.** Genes of `--operon_biotypes` (default `protein_coding`) are taken with their ends after UTR annotation. Genes without a `gene_biotype` count as protein-coding when they have a CDS. Genes on the other strand are ignored, so nested or interleaved genes do not interrupt an operon (as `calcOperons()` in annotationpolish).
 2. **Grouping.** A gene joins the operon of the gene before it, in transcription order, when the intergenic distance is below `--operon_max_gap` bases. The distance runs from the 3'-most end of the operon so far to the 5' end of the gene. Overlapping genes join.
-3. **Splitting.** A non-SL (`nosl`) TSS on the same strand, between the end of the previous gene and a gene's start codon, starts a new operon at that gene, however short the intergenic distance: the gene has its own promoter (as `split_operons()`). `--operon_split_min_count` sets the minimum count of such a TSS. A non-SL TSS inside the acceptor zone of an SL TSS of the gene does not split (SL acceptor rule, above).
+3. **Splitting.** A non-SL (`nosl`) TSS on the same strand, between the end of the previous gene and a gene's start codon, starts a new operon at that gene, however short the intergenic distance: the gene has its own promoter (as `split_operons()`). `--operon_split_min_count` sets the minimum count of such a TSS. A non-SL TSS within the SL acceptor window (5 bp either side) of an SL TSS does not split (SL acceptor rule, above).
 4. **Size.** Runs of at least two genes are reported.
 
 In true operons the downstream genes are trans-spliced. The MultiQC table therefore reports:
@@ -159,7 +152,8 @@ All parameters, with defaults, are in the [parameter schema](../nextflow_schema.
 | `--operons`             | `true`        | annotate operons (genomes with SL data only)                         |
 | `--operon_max_gap`      | `500`         | same-strand genes closer than this are grouped into operons          |
 | `--operon_split_min_count` | `0`        | minimum count of a non-SL TSS that splits an operon                  |
-| `--min_outron`          | `50`          | SL acceptor rule: non-SL TSSs downstream of, or closer than this upstream of, an SL acceptor are ignored |
+| `--sl_window_up`        | `5`           | SL acceptor rule: ignore non-SL TSSs this close upstream of an SL acceptor |
+| `--sl_window_down`      | `5`           | the same downstream (`-1`: the whole 5' UTR)                         |
 | `--operon_biotypes`     | `protein_coding` | gene biotypes grouped into operons (`all` for every gene)        |
 
 ## References
@@ -170,6 +164,10 @@ All parameters, with defaults, are in the [parameter schema](../nextflow_schema.
 - Fejes-Toth K et al. (2009) Post-transcriptional processing generates a diversity of 5'-modified long and short RNAs. Nature 457:1028–1032. [doi:10.1038/nature07759](https://doi.org/10.1038/nature07759)
 - Ganot P et al. (2004) Spliced-leader RNA trans splicing in a chordate, *Oikopleura dioica*, with a compact genome. Mol Cell Biol 24:7795–7805. [doi:10.1128/MCB.24.17.7795-7805.2004](https://doi.org/10.1128/MCB.24.17.7795-7805.2004)
 - Plessy C et al. (2024) Extreme genome scrambling in marine planktonic *Oikopleura dioica* cryptic species. Genome Res 34:426–440. [doi:10.1101/gr.278295.123](https://doi.org/10.1101/gr.278295.123)
+- Matsumoto J et al. (2010) High-throughput sequence analysis of *Ciona intestinalis* SL trans-spliced mRNAs: alternative expression modes and gene function correlates. Genome Res 20:636–645. [doi:10.1101/gr.100271.109](https://doi.org/10.1101/gr.100271.109)
+- Yokomori R et al. (2016) Genome-wide identification and characterization of transcription start sites and promoters in the tunicate *Ciona intestinalis*. Genome Res 26:140–150. [doi:10.1101/gr.184648.114](https://doi.org/10.1101/gr.184648.114)
+- Yokomori R, Kusakabe TG, Nakai K (2024) Characterization of trans-spliced chimeric RNAs: insights into the mechanism of trans-splicing. NAR Genom Bioinform 6:lqae067. [doi:10.1093/nargab/lqae067](https://doi.org/10.1093/nargab/lqae067)
+- Danks GB, Navratilova P, Lenhard B, Thompson EM (2018) Distinct core promoter codes drive transcription initiation at key developmental transitions in a marine chordate. BMC Genomics 19:164. [doi:10.1186/s12864-018-4504-5](https://doi.org/10.1186/s12864-018-4504-5)
 - Lasda EL, Blumenthal T (2011) Trans-splicing. WIREs RNA 2:417–434. [doi:10.1002/wrna.71](https://doi.org/10.1002/wrna.71)
 - Blumenthal T (2012) Trans-splicing and operons in *C. elegans*. WormBook. [doi:10.1895/wormbook.1.5.2](https://doi.org/10.1895/wormbook.1.5.2)
 

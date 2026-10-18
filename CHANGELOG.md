@@ -18,7 +18,7 @@ Initial release of luscombeu/utrannotation, created with the [nf-core](https://n
 - 3' ends no longer extend into the next same-strand transcript (operon neighbours).
 - Input checks: annotation sequences must be in the genome, and TSSs must lie on genome sequences.
 - `--trans_splicing` and `--operons` switches; `sl_leader` attribute when cagescan searched for several leaders; coding transcripts are any transcripts with a CDS (not only EGAPx `mRNA`), so AUGUSTUS-style GFF3 works too.
-- SL acceptor rule (`--min_outron`, default 50): non-SL TSSs downstream of a qualifying SL acceptor (inside the mature mRNA), or fewer than 50 nt upstream of it (too close to start an outron; Conrad et al. 1991, 1995), are ignored for the TSS choice and operon splits.
+- SL acceptor rule (`--sl_window_up`, `--sl_window_down`, default 5): non-SL TSSs within 5 bp of a qualifying SL acceptor are ignored for the TSS choice and operon splits (SL reads without a recognisable leader). A transcript whose chosen TSS is non-SL but that also has a qualifying SL acceptor records it (`sl_acceptor_peak`, `sl_acceptor_count`).
 - Operons (`ANNOTATE_OPERONS`) for genomes with spliced-leader CAGE data. Same-strand genes closer than `--operon_max_gap` (500, as in Plessy et al. 2024) are grouped, and a gene with its own non-SL TSS starts a new operon. On OKI2018_I69 with the Okinawa CAGE clusters, this recovers the Ganot et al. 2004 cyclin D3 operon (XPO7/RBP16, DYNLL2, TUBD1, MBF1, CYCDC) with the POC5 leader and IQCK, for maximum gaps from 100 to 750 bp.
 
 ### `Fixed`
