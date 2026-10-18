@@ -22,9 +22,11 @@ params {
     keep_polya_evidence : Boolean = true
     pas_window          : Integer = 500
     pas_offset          : Integer = 0
-    skip_operons        : Boolean = false
+    trans_splicing      : Boolean = true
+    operons             : Boolean = true
     operon_max_gap      : Integer = 500
     operon_split_min_count : Float = 0.0
+    operon_sl_shadow    : Integer = 5
     version             : Boolean = false
     plaintext_email     : Boolean = false
     monochrome_logs     : Boolean = false

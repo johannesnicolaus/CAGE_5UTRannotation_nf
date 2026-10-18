@@ -21,7 +21,7 @@ UTR5 = "five_prime_UTR"
 UTR3 = "three_prime_UTR"
 TSA = "trans_splice_acceptor_site"
 # UTR rows are always regenerated from exons and CDS, so any in the input are dropped.
-DERIVED_TYPES = {UTR5, UTR3, "5'UTR", "3'UTR", "five_prime_utr", "three_prime_utr"}
+DERIVED_TYPES = {UTR5, UTR3, "UTR", "5'UTR", "3'UTR", "five_prime_utr", "three_prime_utr"}
 
 # Non-coding transcript types whose 5' end is also moved to a CAGE TSS ('transcript' is
 # EGAPx's misc_RNA: non-coding variants of protein-coding genes).
@@ -250,8 +250,9 @@ class Annotation:
                 yield gene, t
 
     def coding_transcripts(self):
+        """Transcripts with a CDS (EGAPx 'mRNA', or 'transcript' in AUGUSTUS-style GFF3)."""
         for gene, t in self.transcripts():
-            if t.feature.type == "mRNA" and t.is_coding and t.exons:
+            if t.is_coding and t.exons and gene.feature.type != "pseudogene":
                 yield gene, t
 
     def noncoding_transcripts(self):
@@ -318,7 +319,7 @@ def utr_features(transcript):
     The rows carry only ID and Parent; the evidence attributes are on the mRNA, so they are
     also there when a UTR has length 0 (e.g. an SL acceptor right at the ATG).
     """
-    if transcript.feature.type != "mRNA" or not transcript.is_coding:
+    if not transcript.is_coding:
         return []
     utr5, utr3 = transcript.utr_segments()
     rows = []

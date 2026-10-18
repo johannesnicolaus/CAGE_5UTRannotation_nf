@@ -8,6 +8,14 @@ The pipeline code is complete, but it has **not been run yet**. The test data ar
 - The local modules have no `tests/main.nf.test` yet.
 - `tests/default.nf.test` is the template's pipeline test and has no snapshot.
 
+## Runs so far
+
+- 2026-10-18, Osaka O10: O10 genome, O10.1.0 v1.3 GFF3 (AUGUSTUS models that already had CAGE UTRs), and cagescan `osa_MGI_220209_v4` (CAGEfightR clusters, separate SL clusters). Run directory `/flash/LuscombeU/nico/utrannotation_runs/osa_O10_v1.3`. Completed, 12 tasks.
+  - 5' ends: 65% of 17,686 mRNAs got a CAGE TSS, 42% of them sl. 98.7% of sl TSSs follow an AG.
+  - Proteins: all CDSs unchanged. 17,646 proteins are identical to the v1.3 peptides; the other 40 differ only in how internal stop codons are written (`*` vs `.`).
+  - Operons: 2,496, with 43% of genes. Compared with the v1.3 operons, 84% of operonic genes are shared and 1,504 gene sets are identical.
+  - The MultiQC length plots were not parsed (numeric first bin label); fixed afterwards.
+
 ## Test data to add
 
 A small, self-contained data set:
@@ -50,7 +58,8 @@ Operons (`ANNOTATE_OPERONS`):
 
 - [ ] Ganot et al. 2004 cyclin D3 operon (AJ628168) recovered as one operon. On OKI2018_I69 v2.3 with the old OKItoOKI consensus clusters, `bin/annotate_operons.py` gives PAR:15956186-15967604(-): POC5, IQCK, XPO7, DYNLL2, TUBD1, MBF1, CYCDC. PDCL3 is split off by a non-SL TSS of 783 reads.
 - [ ] genome without SL counts: no operon step
-- [ ] `--skip_operons`
+- [ ] `--operons false` (SL labels kept, no operons) and `--trans_splicing false` (all nosl, no operons)
+- [ ] several leaders (`tss_cluster_sl_leaders.tsv`): `sl_leader` attribute
 
 Whole pipeline:
 

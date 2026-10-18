@@ -27,7 +27,7 @@ EGAPx models carry no TSS or trans-splicing information. Without long reads, the
    - (i) It keeps the EGAPx end when EGAPx found poly(A)-tail reads.
    - (ii) Otherwise it moves to the polyadenylation signal (`AATAAA`) closest to the EGAPx end, within `--pas_window` (500) bases.
    - (iii) Otherwise it keeps the EGAPx end.
-3. **Operons.** For genomes with spliced-leader CAGE data, same-strand genes closer than `--operon_max_gap` (500) bases are grouped into operons. A gene with its own non-SL TSS starts a new operon, however close it is to the previous gene. Genomes without a spliced leader get UTRs only.
+3. **Operons.** For genomes with spliced-leader CAGE data, same-strand genes closer than `--operon_max_gap` (500) bases are grouped into operons. A gene with its own non-SL TSS starts a new operon, however close it is to the previous gene. Genomes without a spliced leader get UTRs only. Trans-splicing and operons are separate switches (`--trans_splicing`, `--operons`), since trans-splicing organisms need not have operons.
 4. **UTR features.** Explicit `five_prime_UTR` and `three_prime_UTR` features are written, with evidence attributes. CDSs are never changed.
 
 This pipeline is based on the CAGE 5' UTR annotation workflow in [LuscombeU_5primeanno](https://github.com/johannesnicolaus/LuscombeU_5primeanno). That workflow added SL and non-SL CAGE 5' UTRs to *O. dioica* gene models that had none (OKI2018_I69, OSKA2016 and Bar2). This pipeline brings the same approach to EGAPx annotations, which already have UTRs, as an nf-core pipeline. The `five_prime_UTR` naming and the `tss_type=sl|nosl` labels come from that workflow.

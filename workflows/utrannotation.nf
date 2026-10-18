@@ -42,7 +42,7 @@ workflow UTRANNOTATION {
     //
     // SUBWORKFLOW: uncompress the genome and annotation, find the cagescan TSS cluster files
     //
-    PREPARE_INPUTS(ch_samplesheet, params.cluster_set)
+    PREPARE_INPUTS(ch_samplesheet, params.cluster_set, params.trans_splicing)
     def ch_fasta = PREPARE_INPUTS.out.fasta  // [ meta, fasta ]
     def ch_gff   = PREPARE_INPUTS.out.gff    // [ meta, gff ]
 
@@ -74,15 +74,15 @@ workflow UTRANNOTATION {
     def ch_utr_gff = ANNOTATE_UTR3.out.gff
 
     //
-    // MODULE: operons, only for genomes whose CAGE data have spliced-leader reads
-    // (without SL every TSS is nosl and would split every operon)
+    // MODULE: operons (--operons), only for genomes with spliced-leader data: eukaryotic operons
+    // depend on SL trans-splicing, and without SL labels every TSS is nosl and would split every operon
     //
-    def ch_has_sl = PREPARE_INPUTS.out.cage.map { meta, _clusters, _counts, sl_counts -> [ meta, sl_counts ? true : false ] }
+    def ch_has_sl = PREPARE_INPUTS.out.cage.map { meta, _clusters, _counts, sl_counts, _leaders -> [ meta, sl_counts ? true : false ] }
     ANNOTATE_OPERONS(
         ch_utr_gff
             .join(CAGE_TSS_TABLE.out.tsv, failOnMismatch: true)
             .join(ch_has_sl, failOnMismatch: true)
-            .filter { _meta, _gff, _tss, has_sl -> has_sl && !params.skip_operons }
+            .filter { _meta, _gff, _tss, has_sl -> has_sl && params.operons }
             .map { meta, gff, tss, _has_sl -> [ meta, gff, tss ] }
     )
     ch_multiqc_files = ch_multiqc_files.mix(ANNOTATE_OPERONS.out.mqc.map { _meta, file -> file })

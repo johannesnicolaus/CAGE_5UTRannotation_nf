@@ -35,11 +35,15 @@ An [example samplesheet](../assets/samplesheet.csv) has been provided with the p
 
 ### What is read from the cagescan results
 
+The pipeline reads cagescan results from v1.0.0dev onwards, with either kind of broad cluster set: CAGEfightR or paraclu clusters, with SL and non-SL reads clustered separately or pooled.
+
 Files are taken from `tss_clusters/<set>/`, where `<set>` is `--cluster_set` (`broad`, the default, or `sharp`):
 
 - `all_samples.<set>.tss_clusters.bed`: the clusters. The dominant CTSS (`thickStart`) is the TSS position.
 - `all_samples.<set>.tss_cluster_counts.tsv`: READ1 counts per cluster and sample, summed over samples.
 - `all_samples.<set>.tss_cluster_sl_counts.tsv`: READ1s that carried the spliced leader. cagescan writes this file only when `--sl_sequence` was given and SL reads were found. Without it, every TSS is labelled `nosl`.
+  - With cagescan's separate SL clusters (`--sl_separate_clusters`, its default), `SL…` clusters hold only SL reads, so they are `sl`. `TC…` clusters hold none, so they are `nosl`. They may overlap.
+- `all_samples.<set>.tss_cluster_sl_leaders.tsv` (optional, several leaders only): the main leader of each SL cluster.
 
 A cluster is labelled `sl` when SL reads make up at least `--sl_min_fraction` (default 0.5) of its reads. The fraction and the SL count are kept as attributes, so TSSs used by both trans-spliced and non-trans-spliced RNAs can be found.
 
@@ -93,11 +97,21 @@ The *O. dioica* genome is AT-rich, so AATAAA also occurs by chance. `utr3_eviden
 
 ## Operons (`ANNOTATE_OPERONS`)
 
-Operons are annotated only for genomes whose cagescan results include spliced-leader counts, i.e. cagescan was run with `--sl_sequence` and found SL reads. Genomes without SL trans-splicing get UTRs but no operons. `--skip_operons` switches the step off for every genome.
+Trans-splicing and operons have separate switches, because one does not imply the other. Eukaryotic operons depend on SL trans-splicing, which gives the downstream genes of a polycistronic transcript their cap. But trans-splicing does not imply operons: in every trans-splicing animal many SL genes are monocistronic, and operons are common in some lineages (nematodes, tunicates) and rare or unknown in others.
+
+| Organism | Settings | Result |
+| --- | --- | --- |
+| With trans-splicing and operons (*Oikopleura*, *C. elegans*) | defaults | `sl` / `nosl` TSSs and operons |
+| With trans-splicing, without operons | `--operons false` | `sl` / `nosl` TSSs, no operons |
+| Without trans-splicing | defaults | cagescan writes no SL counts, so every TSS is `nosl` and no operons are annotated |
+
+`--trans_splicing false` ignores the SL counts even when they exist: every TSS is `nosl` and there are no acceptor rows and no operons. Operons are never annotated without SL data.
+
+When cagescan searched for several leaders (`--sl_sequence SL1=...,SL2=...`), each `sl` TSS gets the main leader as `sl_leader`. In *C. elegans*, SL2 marks downstream genes of operons.
 
 1. **Genes.** Genes of `--operon_biotypes` (default `protein_coding`) are taken with their ends after UTR annotation. Genes without a `gene_biotype` count as protein-coding when they have a CDS. Genes on the other strand are ignored, so nested or interleaved genes do not interrupt an operon (as `calcOperons()` in annotationpolish).
 2. **Grouping.** A gene joins the operon of the gene before it, in transcription order, when the intergenic distance is below `--operon_max_gap` bases. The distance runs from the 3'-most end of the operon so far to the 5' end of the gene. Overlapping genes join.
-3. **Splitting.** A non-SL (`nosl`) TSS on the same strand, between the end of the previous gene and a gene's start codon, starts a new operon at that gene, however short the intergenic distance: the gene has its own promoter (as `split_operons()`). `--operon_split_min_count` sets the minimum count of such a TSS.
+3. **Splitting.** A non-SL (`nosl`) TSS on the same strand, between the end of the previous gene and a gene's start codon, starts a new operon at that gene, however short the intergenic distance: the gene has its own promoter (as `split_operons()`). `--operon_split_min_count` sets the minimum count of such a TSS. A non-SL TSS within `--operon_sl_shadow` (5) bases of a stronger SL TSS does not split: it is taken to be SL reads whose leader was not recognised. In the Osaka cagescan run, about 140 of 17,203 non-SL clusters sit that close to an SL acceptor.
 4. **Size.** Runs of at least two genes are reported.
 
 In true operons the downstream genes are trans-spliced. The MultiQC table therefore reports:
@@ -123,9 +137,11 @@ All parameters, with defaults, are in the [parameter schema](../nextflow_schema.
 | `--pas_motifs`          | `AATAAA`      | comma-separated polyadenylation-signal motifs                        |
 | `--pas_window`          | `500`         | maximum distance of the signal from the EGAPx 3' end                 |
 | `--pas_offset`          | `0`           | bases from the motif end to the 3' end                               |
-| `--skip_operons`        | `false`       | do not annotate operons                                              |
+| `--trans_splicing`      | `true`        | label TSSs `sl` / `nosl` from the cagescan SL counts                 |
+| `--operons`             | `true`        | annotate operons (genomes with SL data only)                         |
 | `--operon_max_gap`      | `500`         | same-strand genes closer than this are grouped into operons          |
 | `--operon_split_min_count` | `0`        | minimum count of a non-SL TSS that splits an operon                  |
+| `--operon_sl_shadow`    | `5`           | a non-SL TSS this close to a stronger SL TSS does not split          |
 | `--operon_biotypes`     | `protein_coding` | gene biotypes grouped into operons (`all` for every gene)        |
 
 ## Running the pipeline

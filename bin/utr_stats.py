@@ -17,8 +17,9 @@ import statistics
 
 from gff3_utils import Annotation
 
-BINS = [(0, 0, "0"), (1, 50, "1-50"), (51, 100, "51-100"), (101, 200, "101-200"), (201, 500, "201-500"),
-        (501, 1000, "501-1000"), (1001, None, ">1000")]
+# text labels: a numeric first label would make MultiQC read the header row as data
+BINS = [(0, 0, "0 bp"), (1, 50, "1-50 bp"), (51, 100, "51-100 bp"), (101, 200, "101-200 bp"), (201, 500, "201-500 bp"),
+        (501, 1000, "501-1000 bp"), (1001, None, ">1000 bp")]
 
 COLUMNS = ["transcript_id", "gene_id", "seqid", "strand",
            "utr5_len_egapx", "utr5_len", "tss_evidence", "tss_type", "tss_id", "tss_peak", "tss_count",

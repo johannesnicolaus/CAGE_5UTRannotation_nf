@@ -35,6 +35,7 @@ Attributes added to the transcript (five_prime_UTR rows carry only ID and Parent
   tss_id, tss_peak (chrom:pos:strand), tss_count, sl_count, sl_fraction
   tss_shift      bases added (positive) or removed (negative) at the 5' end
   acceptor_AG    sl only: true if the two genomic bases before the TSS are AG
+  sl_leader      sl only, when several leaders were searched for: the main leader
 An sl TSS also gets a 1-bp trans_splice_acceptor_site row (SO:0000706). When the TSS of
 an mRNA is at the ATG (5' UTR of length 0, common for SL acceptors) there is no
 five_prime_UTR row; the attributes and the acceptor row still record it.
@@ -67,6 +68,7 @@ def read_tss(path):
                 "sl_count": float(f[col["sl_count"]]),
                 "sl_fraction": f[col["sl_fraction"]],
                 "tss_type": f[col["tss_type"]],
+                "sl_leader": f[col["sl_leader"]] if "sl_leader" in col else "NA",
             }
             items.append((f[col["chrom"]], f[col["strand"]], int(f[col["peak"]]), row))
     return items
@@ -238,6 +240,8 @@ def record_tss(t, pos, row, shift, genome, stats):
     if row["tss_type"] != "sl":
         return
     stats["sl"] += 1
+    if row["sl_leader"] != "NA":
+        f.set("sl_leader", row["sl_leader"])
     ag = acceptor_ag(genome, t.seqid, t.strand, pos)
     if ag is not None:
         f.set("acceptor_AG", "true" if ag else "false")
@@ -247,6 +251,8 @@ def record_tss(t, pos, row, shift, genome, stats):
     site.set("Parent", t.id)
     site.set("tss_id", row["tss_id"])
     site.set("sl_fraction", row["sl_fraction"])
+    if row["sl_leader"] != "NA":
+        site.set("sl_leader", row["sl_leader"])
     t.others.append(site)
 
 

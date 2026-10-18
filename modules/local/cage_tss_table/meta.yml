@@ -29,6 +29,10 @@ input:
         type: file
         description: "cagescan all_samples.<set>.tss_cluster_sl_counts.tsv, or [] when the dataset has no spliced leader"
         pattern: "*.tsv"
+    - sl_leaders:
+        type: file
+        description: "cagescan all_samples.<set>.tss_cluster_sl_leaders.tsv (several leaders only), or []"
+        pattern: "*.tsv"
 output:
   tsv:
     - - meta:
@@ -38,7 +42,7 @@ output:
             e.g. [ id:'I25_prim' ]
       - "*.tss.tsv":
           type: file
-          description: "TSS table: chrom, peak (1-based), strand, tss_id, count, sl_count, sl_fraction, tss_type"
+          description: "TSS table: chrom, peak (1-based), strand, tss_id, count, sl_count, sl_fraction, tss_type, sl_leader"
           pattern: "*.tss.tsv"
   versions_python:
     - - ${task.process}:

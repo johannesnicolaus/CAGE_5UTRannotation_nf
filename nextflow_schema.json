@@ -161,16 +161,24 @@
             }
         },
         "operon_options": {
-            "title": "Operon options",
+            "title": "Trans-splicing and operon options",
             "type": "object",
             "fa_icon": "fas fa-link",
-            "description": "Operons: runs of closely spaced same-strand genes, split before genes with a non-SL TSS. Run only for genomes whose cagescan results include spliced-leader counts.",
+            "description": "Spliced-leader (SL) labels and operons. Operons need SL data: they are annotated only for genomes whose cagescan results have SL counts, and only with --trans_splicing.",
             "properties": {
-                "skip_operons": {
+                "trans_splicing": {
                     "type": "boolean",
-                    "default": false,
-                    "description": "Do not annotate operons.",
-                    "fa_icon": "fas fa-forward"
+                    "default": true,
+                    "description": "Use the spliced-leader counts of the cagescan results to label TSSs `sl` / `nosl`. Genomes without SL counts are all `nosl` either way.",
+                    "help_text": "Set to false to ignore SL data: every TSS is `nosl`, no `trans_splice_acceptor_site` rows are written and no operons are annotated.",
+                    "fa_icon": "fas fa-cut"
+                },
+                "operons": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Annotate operons for genomes with SL data. Set to false for trans-splicing organisms without operons.",
+                    "help_text": "Eukaryotic operons depend on SL trans-splicing, but trans-splicing does not imply operons: in many trans-splicing animals most SL genes are monocistronic. Operons are never annotated for genomes without SL counts.",
+                    "fa_icon": "fas fa-link"
                 },
                 "operon_max_gap": {
                     "type": "integer",
@@ -191,6 +199,13 @@
                     "default": "protein_coding",
                     "description": "Comma-separated gene_biotype values of the genes grouped into operons, or `all`.",
                     "fa_icon": "fas fa-filter"
+                },
+                "operon_sl_shadow": {
+                    "type": "integer",
+                    "default": 5,
+                    "minimum": 0,
+                    "description": "A non-SL TSS within this many bases of a stronger SL TSS does not split an operon (taken as SL reads whose leader was not recognised; 0 to disable).",
+                    "fa_icon": "fas fa-adjust"
                 }
             }
         },

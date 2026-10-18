@@ -8,7 +8,7 @@ process CAGE_TSS_TABLE {
         'quay.io/biocontainers/pysam:0.24.1--py312hf5ad864_0' }"
 
     input:
-    tuple val(meta), path(clusters), path(counts), path(sl_counts)
+    tuple val(meta), path(clusters), path(counts), path(sl_counts), path(sl_leaders)
 
     output:
     tuple val(meta), path("*.tss.tsv"), emit: tsv
@@ -21,11 +21,13 @@ process CAGE_TSS_TABLE {
     def args   = task.ext.args   ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
     def sl_arg = sl_counts ? "--sl-counts ${sl_counts}" : ''
+    def leaders_arg = sl_leaders ? "--sl-leaders ${sl_leaders}" : ''
     """
     cage_tss_table.py \\
         --clusters ${clusters} \\
         --counts ${counts} \\
         ${sl_arg} \\
+        ${leaders_arg} \\
         ${args} \\
         --output ${prefix}.tss.tsv
     """
@@ -33,6 +35,6 @@ process CAGE_TSS_TABLE {
     stub:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    printf 'chrom\\tpeak\\tstrand\\ttss_id\\tcount\\tsl_count\\tsl_fraction\\ttss_type\\n' > ${prefix}.tss.tsv
+    printf 'chrom\\tpeak\\tstrand\\ttss_id\\tcount\\tsl_count\\tsl_fraction\\ttss_type\\tsl_leader\\n' > ${prefix}.tss.tsv
     """
 }

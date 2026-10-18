@@ -10,6 +10,7 @@ workflow PREPARE_INPUTS {
     take:
     ch_samplesheet // channel: [ meta, genome, annotation, cagescan_dir ]
     cluster_set    // string: 'broad' or 'sharp'
+    trans_splicing // boolean: use the spliced-leader counts when present
 
     main:
 
@@ -44,31 +45,36 @@ workflow PREPARE_INPUTS {
     // cagescan outputs: TSS clusters, counts and (only for datasets with a spliced leader) SL counts
     //
     def ch_cage = ch_samplesheet.map { meta, _genome, _annotation, cagescan_dir ->
-        cagescanTssFiles(meta, cagescan_dir, cluster_set)
+        cagescanTssFiles(meta, cagescan_dir, cluster_set, trans_splicing)
     }
 
     emit:
     fasta = ch_fasta // channel: [ meta, fasta ]
     gff   = ch_gff   // channel: [ meta, gff ]
-    cage  = ch_cage  // channel: [ meta, tss_clusters.bed, tss_cluster_counts.tsv, tss_cluster_sl_counts.tsv or [] ]
+    cage  = ch_cage  // channel: [ meta, tss_clusters.bed, tss_cluster_counts.tsv, tss_cluster_sl_counts.tsv or [], tss_cluster_sl_leaders.tsv or [] ]
 }
 
 //
 // Paths of the TSS cluster files of one cluster set in a cagescan results directory
 // (cagescan docs/output.md: tss_clusters/<set>/all_samples.<set>.*).
 //
-def cagescanTssFiles(meta, cagescan_dir, cluster_set) {
+def cagescanTssFiles(meta, cagescan_dir, cluster_set, trans_splicing) {
     def dir = file(cagescan_dir.toString()).resolve("tss_clusters/${cluster_set}")
     def clusters = dir.resolve("all_samples.${cluster_set}.tss_clusters.bed")
     def counts = dir.resolve("all_samples.${cluster_set}.tss_cluster_counts.tsv")
     def sl_counts = dir.resolve("all_samples.${cluster_set}.tss_cluster_sl_counts.tsv")
+    def sl_leaders = dir.resolve("all_samples.${cluster_set}.tss_cluster_sl_leaders.tsv")
     [ clusters, counts ].each { required ->
         if (!required.exists()) {
             error("Sample '${meta.id}': ${required} not found. Is ${cagescan_dir} a luscombeu/cagescan results directory with the '${cluster_set}' cluster set (--cluster_set)?")
         }
     }
+    if (!trans_splicing) {
+        return [ meta, clusters, counts, [], [] ]
+    }
     if (!sl_counts.exists()) {
         log.info("Sample '${meta.id}': no spliced-leader counts in ${dir}; every TSS will be labelled nosl and operons are not annotated.")
+        return [ meta, clusters, counts, [], [] ]
     }
-    return [ meta, clusters, counts, sl_counts.exists() ? sl_counts : [] ]
+    return [ meta, clusters, counts, sl_counts, sl_leaders.exists() ? sl_leaders : [] ]
 }

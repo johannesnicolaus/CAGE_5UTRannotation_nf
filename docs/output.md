@@ -55,6 +55,7 @@ The pipeline's evidence attributes are on the transcript row only (`mRNA`, `lncR
 | `tss_count`     | READ1s of the cluster, summed over samples                                                    |
 | `sl_count`      | of these, READ1s carrying the spliced leader                                                  |
 | `sl_fraction`   | `sl_count / tss_count`                                                                        |
+| `sl_leader`     | `sl` only, when cagescan searched for several leaders: the main leader of the TSS (e.g. SL1, SL2) |
 | `acceptor_AG`   | `sl` only: `true` if the two genomic bases before the TSS are AG (the trans-splice acceptor) |
 | `tss_shift`     | bases added (positive) or removed (negative) at the 5' end                                    |
 | `utr3_evidence` | `polyA_reads`, `PAS` or `EGAPx` (see [usage](usage.md#3-end-annotate_utr3))                   |
@@ -69,9 +70,9 @@ The pipeline's evidence attributes are on the transcript row only (`mRNA`, `lncR
 
 - `tss/`
   - `<id>.tss.tsv`: one row per cagescan TSS cluster. The columns are:
-    - `chrom`, `peak` (dominant CTSS, 1-based), `strand`, `tss_id`;
+    - `chrom`, `peak` (dominant CTSS, 1-based), `strand`, `tss_id` (`TC…` non-SL, `SL…` trans-splice site clusters);
     - `count`, `sl_count` (summed over samples);
-    - `sl_fraction`, `tss_type` (`sl` / `nosl`).
+    - `sl_fraction`, `tss_type` (`sl` / `nosl`), `sl_leader` (main leader with several leaders, else `NA`).
 
 </details>
 
@@ -93,7 +94,7 @@ The pipeline's evidence attributes are on the transcript row only (`mRNA`, `lncR
 <details markdown="1">
 <summary>Output files</summary>
 
-- `operons/` (only for genomes whose cagescan results have spliced-leader counts)
+- `operons/` (only for genomes whose cagescan results have spliced-leader counts, with `--operons` and `--trans_splicing` on)
   - `<id>.operons.gff3`: one `operon` row (SO:0000178) per operon. Attributes:
     - `genes`: in transcription order;
     - `leader`: the first gene;
