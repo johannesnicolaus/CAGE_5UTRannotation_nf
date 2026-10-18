@@ -122,6 +122,14 @@
                     "default": true,
                     "description": "Also move the 5' end of lncRNAs and other non-coding transcripts (EGAPx misc_RNA) to the strongest CAGE TSS within `--tss_max_dist` of their EGAPx 5' end.",
                     "fa_icon": "fas fa-scroll"
+                },
+                "sl_shadow": {
+                    "type": "integer",
+                    "default": 5,
+                    "minimum": 0,
+                    "description": "Non-SL TSSs exactly 2 bases upstream of an SL TSS (the acceptor's A), or within this many bases of a stronger SL TSS, are ignored when choosing a transcript's TSS and when splitting operons (0 to disable).",
+                    "help_text": "These are leftover SL reads: reads that start with the leader's last two bases (AG), align to the acceptor AG and look like a TSS 2 bases upstream. In the Osaka cagescan run they come almost only from the DE1 and DE2 libraries.",
+                    "fa_icon": "fas fa-adjust"
                 }
             }
         },
@@ -199,13 +207,6 @@
                     "default": "protein_coding",
                     "description": "Comma-separated gene_biotype values of the genes grouped into operons, or `all`.",
                     "fa_icon": "fas fa-filter"
-                },
-                "operon_sl_shadow": {
-                    "type": "integer",
-                    "default": 5,
-                    "minimum": 0,
-                    "description": "A non-SL TSS within this many bases of a stronger SL TSS does not split an operon (taken as SL reads whose leader was not recognised; 0 to disable).",
-                    "fa_icon": "fas fa-adjust"
                 }
             }
         },

@@ -68,7 +68,16 @@ Before anything is changed, the pipeline checks the inputs. It stops if annotati
    - Ties prefer `nosl`.
 4. **Edit.** Exons upstream of the TSS are dropped and the first exon starts at the TSS, so the EGAPx 5' UTR is **extended or trimmed**. Gene bounds follow. CDSs are never changed.
 5. **Unchanged models.** Models without a qualifying TSS, and models open at the 5' end (EGAPx `partial`), keep the EGAPx 5' end (`tss_evidence=EGAPx`).
-6. **TSS at the ATG.** A TSS may sit at the ATG itself (`--utr5_min_len 0`), as SL acceptors often do. The mRNA then has no `five_prime_UTR` row but still carries the TSS attributes.
+6. **SL shadows.** Some non-SL peaks are leftover SL reads, not TSSs, and are ignored here and when splitting operons:
+   - a non-SL peak exactly 2 bases upstream of an SL peak (on the A of the acceptor AG), whatever its count;
+   - a non-SL peak within `--sl_shadow` (5) bases of a stronger SL peak.
+
+   **Osaka data.** In the Osaka cagescan run, 104 of the 142 non-SL clusters within 5 bp of an SL cluster peak exactly 2 bp upstream.
+   - **The reads have no leader:** at two such sites they align full length with no soft clip, and start with AG followed by the transcript. The leader's last two bases are …AG, so these molecules carry only the end of the leader, which matches the genomic acceptor.
+   - **They come from two libraries:** almost all of them are from DE1 and DE2, where they outnumber the SL reads, and they are absent from the EB libraries. That points to a library artefact, not a promoter.
+   - **Biology agrees:** an RNA starting at the acceptor has no outron, so it cannot be trans-spliced there (Conrad et al. 1991).
+   - **What changes:** on the O10 annotation, the rule labels 13 more mRNAs `sl` (all with an AG acceptor) and removes 30 operon splits.
+7. **TSS at the ATG.** A TSS may sit at the ATG itself (`--utr5_min_len 0`), as SL acceptors often do. The mRNA then has no `five_prime_UTR` row but still carries the TSS attributes.
 
 ### 5' end of non-coding transcripts
 
@@ -111,7 +120,7 @@ When cagescan searched for several leaders (`--sl_sequence SL1=...,SL2=...`), ea
 
 1. **Genes.** Genes of `--operon_biotypes` (default `protein_coding`) are taken with their ends after UTR annotation. Genes without a `gene_biotype` count as protein-coding when they have a CDS. Genes on the other strand are ignored, so nested or interleaved genes do not interrupt an operon (as `calcOperons()` in annotationpolish).
 2. **Grouping.** A gene joins the operon of the gene before it, in transcription order, when the intergenic distance is below `--operon_max_gap` bases. The distance runs from the 3'-most end of the operon so far to the 5' end of the gene. Overlapping genes join.
-3. **Splitting.** A non-SL (`nosl`) TSS on the same strand, between the end of the previous gene and a gene's start codon, starts a new operon at that gene, however short the intergenic distance: the gene has its own promoter (as `split_operons()`). `--operon_split_min_count` sets the minimum count of such a TSS. A non-SL TSS within `--operon_sl_shadow` (5) bases of a stronger SL TSS does not split: it is taken to be SL reads whose leader was not recognised. In the Osaka cagescan run, about 140 of 17,203 non-SL clusters sit that close to an SL acceptor.
+3. **Splitting.** A non-SL (`nosl`) TSS on the same strand, between the end of the previous gene and a gene's start codon, starts a new operon at that gene, however short the intergenic distance: the gene has its own promoter (as `split_operons()`). `--operon_split_min_count` sets the minimum count of such a TSS. A non-SL TSS within `--sl_shadow` (5) bases of a stronger SL TSS does not split (see below).
 4. **Size.** Runs of at least two genes are reported.
 
 In true operons the downstream genes are trans-spliced. The MultiQC table therefore reports:
@@ -141,7 +150,7 @@ All parameters, with defaults, are in the [parameter schema](../nextflow_schema.
 | `--operons`             | `true`        | annotate operons (genomes with SL data only)                         |
 | `--operon_max_gap`      | `500`         | same-strand genes closer than this are grouped into operons          |
 | `--operon_split_min_count` | `0`        | minimum count of a non-SL TSS that splits an operon                  |
-| `--operon_sl_shadow`    | `5`           | a non-SL TSS this close to a stronger SL TSS does not split          |
+| `--sl_shadow`           | `5`           | non-SL TSSs this close to a stronger SL TSS are ignored (TSS choice and operon splits) |
 | `--operon_biotypes`     | `protein_coding` | gene biotypes grouped into operons (`all` for every gene)        |
 
 ## Running the pipeline

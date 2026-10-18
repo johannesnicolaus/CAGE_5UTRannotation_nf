@@ -15,8 +15,9 @@
    --split-min-count reads lies on its strand between the end of the previous gene and
    the gene's start codon (its first transcript base for non-coding genes): the gene
    has its own promoter, however short the intergenic distance (as split_operons()).
-   A nosl TSS within --sl-shadow bases of a stronger sl TSS is taken as SL reads whose
-   leader was not recognised, and does not split.
+   A nosl TSS exactly 2 bases upstream of an sl TSS (on the A of the acceptor AG), or
+   within --sl-shadow bases of a stronger sl TSS, is taken as leftover SL reads and does
+   not split.
 4. Runs of at least --min-genes genes are reported.
 
 Outputs:
@@ -105,10 +106,14 @@ def candidate_runs(genes, max_gap):
             yield run
 
 
-def shadowed(pos, row, upstream_rows, shadow):
-    """True if a stronger sl TSS lies within `shadow` bases of this nosl TSS."""
-    return any(r["tss_type"] == "sl" and abs(p - pos) <= shadow and r["count"] > row["count"]
-               for p, r in upstream_rows)
+def shadowed(pos, row, strand, rows, shadow):
+    """True for a nosl TSS on the A of an SL acceptor (2 bases upstream of an sl TSS), or
+    within `shadow` bases of a stronger sl TSS."""
+    if shadow <= 0:
+        return False
+    acceptor_a = pos + 2 if strand == "+" else pos - 2
+    return any(r["tss_type"] == "sl" and abs(p - pos) <= max(shadow, 2)
+               and (p == acceptor_a or r["count"] > row["count"]) for p, r in rows)
 
 
 def split_run(run, tss_index, split_min_count, shadow):
@@ -123,12 +128,12 @@ def split_run(run, tss_index, split_min_count, shadow):
             lo, hi = edge + 1, g.atg
         else:
             lo, hi = g.atg, edge - 1
-        upstream = [(p, row) for p, row in tss_index.window(g.seqid, g.strand, lo - shadow, hi + shadow)
+        upstream = [(p, row) for p, row in tss_index.window(g.seqid, g.strand, lo - max(shadow, 2), hi + max(shadow, 2))
                     if row["count"] > 0]
         inside = [(p, row) for p, row in upstream if lo <= p <= hi]
         nosl = [row for p, row in inside
                 if row["tss_type"] == "nosl" and row["count"] >= split_min_count
-                and not shadowed(p, row, upstream, shadow)]
+                and not shadowed(p, row, g.strand, upstream, shadow)]
         sl_upstream[g.id] = any(row["tss_type"] == "sl" for _, row in inside)
         if nosl:
             splits[g.id] = max(nosl, key=lambda r: r["count"])

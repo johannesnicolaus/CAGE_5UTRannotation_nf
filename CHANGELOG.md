@@ -18,6 +18,7 @@ Initial release of luscombeu/utrannotation, created with the [nf-core](https://n
 - 3' ends no longer extend into the next same-strand transcript (operon neighbours).
 - Input checks: annotation sequences must be in the genome, and TSSs must lie on genome sequences.
 - `--trans_splicing` and `--operons` switches; `sl_leader` attribute when cagescan searched for several leaders; coding transcripts are any transcripts with a CDS (not only EGAPx `mRNA`), so AUGUSTUS-style GFF3 works too.
+- `--sl_shadow`: non-SL TSSs on the A of an SL acceptor (2 bases upstream of an SL TSS), or within 5 bases of a stronger SL TSS, are ignored for the TSS choice and operon splits (leftover SL reads whose leader is reduced to its final AG).
 - Operons (`ANNOTATE_OPERONS`) for genomes with spliced-leader CAGE data. Same-strand genes closer than `--operon_max_gap` (500, as in Plessy et al. 2024) are grouped, and a gene with its own non-SL TSS starts a new operon. On OKI2018_I69 with the Okinawa CAGE clusters, this recovers the Ganot et al. 2004 cyclin D3 operon (XPO7/RBP16, DYNLL2, TUBD1, MBF1, CYCDC) with the POC5 leader and IQCK, for maximum gaps from 100 to 750 bp.
 
 ### `Fixed`

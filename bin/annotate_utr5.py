@@ -21,6 +21,11 @@ Coding mRNAs (models open at the 5' end are left alone):
                 which lies downstream of the outron TSS (default);
    dominant     the highest count.
    Ties prefer nosl over sl (as add_five_prime_utr() did), then the higher count.
+   A nosl peak is not a candidate (an "SL shadow") when it lies exactly 2 bases upstream
+   of an sl peak, on the A of the acceptor AG, or within --sl-shadow bases of a stronger
+   sl peak. Such peaks come from reads that start with the leader's last two bases (AG)
+   and no other leader sequence; they align to the acceptor AG and look like a TSS 2
+   bases upstream. So an SL acceptor with such a shadow stays sl.
 4. Exons upstream of the TSS are dropped and the first exon starts at the TSS, so the
    UTR is extended or trimmed. CDS rows are never changed.
 
@@ -137,6 +142,24 @@ def coding_candidates(t, gene_id, tss_index, cds_index, max_dist, min_utr_len):
             if (in_window or pos <= last) and not cds_index.overlaps(key, *guard, exclude_owner=gene_id):
                 out.append((pos, row, utr_len, in_window))
     return out
+
+
+def is_sl_shadow(pos, row, strand, nearby, shadow):
+    """True for a nosl peak on the A of an SL acceptor (2 bases upstream of an sl peak), or
+    within `shadow` bases of a stronger sl peak. `nearby`: (pos, row) within `shadow` bases."""
+    if row["tss_type"] != "nosl" or shadow <= 0:
+        return False
+    acceptor_a = pos + 2 if strand == "+" else pos - 2
+    return any(r["tss_type"] == "sl" and (p == acceptor_a or r["count"] > row["count"]) for p, r in nearby)
+
+
+def drop_sl_shadows(peaks, tss_index, seqid, strand, shadow):
+    """Remove nosl peaks that are SL shadows (leftover SL reads at an acceptor)."""
+    if shadow <= 0:
+        return peaks
+    return [p for p in peaks
+            if not is_sl_shadow(p[0], p[1], strand,
+                                tss_index.window(seqid, strand, p[0] - max(shadow, 2), p[0] + max(shadow, 2)), shadow)]
 
 
 def choose_coding(peaks, selection, min_rel, min_count, rel_window_only):
@@ -273,6 +296,8 @@ def main():
     parser.add_argument("--nc-min-length", type=int, default=100,
                         help="minimum length left of a non-coding transcript after trimming its 5' end")
     parser.add_argument("--coding-only", action="store_true", help="leave non-coding transcripts unchanged")
+    parser.add_argument("--sl-shadow", type=int, default=5,
+                        help="nosl peaks this close to a stronger sl peak are ignored (0 to disable)")
     args = parser.parse_args()
 
     ann = Annotation.read(args.gff)
@@ -294,10 +319,9 @@ def main():
             continue
         cds_before = [(c.start, c.end) for c in t.cds]
         old_len = t.utr_lengths()[0]
-        pick = choose_coding(
-            coding_candidates(t, gene.feature.id, tss_index, cds_index, args.max_dist, args.min_utr_len),
-            args.selection, args.min_rel, args.min_count, args.rel_window_only,
-        )
+        peaks = coding_candidates(t, gene.feature.id, tss_index, cds_index, args.max_dist, args.min_utr_len)
+        pick = choose_coding(drop_sl_shadows(peaks, tss_index, t.seqid, t.strand, args.sl_shadow),
+                             args.selection, args.min_rel, args.min_count, args.rel_window_only)
         if pick is None:
             st["no CAGE TSS, EGAPx kept"] += 1
             t.feature.set("tss_evidence", "EGAPx")
@@ -314,10 +338,9 @@ def main():
             st = stats["non-coding"]
             st["total"] += 1
             t.others = [o for o in t.others if o.type != TSA]
-            pick = choose_noncoding(
-                noncoding_candidates(t, gene.feature.id, tss_index, cds_index, args.max_dist, args.nc_min_length),
-                args.min_count,
-            )
+            cands = noncoding_candidates(t, gene.feature.id, tss_index, cds_index, args.max_dist, args.nc_min_length)
+            pick = choose_noncoding(drop_sl_shadows(cands, tss_index, t.seqid, t.strand, args.sl_shadow),
+                                    args.min_count)
             if pick is None:
                 st["no CAGE TSS, EGAPx kept"] += 1
                 t.feature.set("tss_evidence", "EGAPx")
