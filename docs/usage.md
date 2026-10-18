@@ -158,7 +158,7 @@ In true operons the downstream genes are trans-spliced. The MultiQC table theref
 
 ## Recommended settings by organism
 
-The defaults are meant for metazoans with or without trans-splicing. For tunicates (*Oikopleura*, *Ciona*), trans-splicing organisms without operons, nematodes, and CAGE without SL information, see [rationale.md, section 0](rationale.md#0-recommended-settings-by-organism).
+The defaults are meant for metazoans with or without trans-splicing. For tunicates (*Oikopleura*, *Ciona*), trans-splicing organisms without operons, nematodes, and CAGE without SL information, see [rationale.md, section 0](rationale.md#0-recommended-settings-by-organism). For nematodes, read [the notes for nematodes](rationale.md#notes-for-nematodes): there the 5' ends and SL labels were checked against WormBase, while operons and 3' ends on over-extended input are approximate.
 
 ## Parameters
 

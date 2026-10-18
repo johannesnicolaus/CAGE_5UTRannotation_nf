@@ -40,8 +40,25 @@ Kinds of evidence, as tagged below:
 | Tunicates (*Oikopleura*, *Ciona*) | defaults | Settings for TSSs near SL acceptors (`--sl_window_up/down 5`) and for operons (`--operon_gap_from cds`, `--operon_max_gap 500`) were chosen and tested on *O. dioica* (I69 EGAPx, O10, Ganot operon). Tunicates have genuine non-trans-spliced TSSs tens of nt from acceptors (sections 3 and 4), so do not widen the SL windows. |
 | *Ciona* specifically | defaults; `--operons` can stay on | *Ciona* has SL trans-splicing for about half of expressed genes and some polycistronic units, most of them without intercistronic sequence [lit: Satou 2006]. The pipeline has not been run on *Ciona*. |
 | Trans-splicing organisms without operons (e.g. some flatworms, cnidarians) | `--operons false` | Trans-splicing does not imply operons [lit: Lasda & Blumenthal 2011]. |
-| Nematodes (*C. elegans*) | defaults; optionally `--sl_window_up 50` | Experiments define a minimum outron of about 50 nt [lit: Conrad 1991, 1995]. For nematodes it is reasonable to treat non-SL peaks closer than that as SL-derived. The pipeline has not been run on *C. elegans*: no CAGE data for it were found on SRA, only short capped nuclear RNA (Jänes et al. 2018), which marks outron starts rather than SL acceptors. |
+| Nematodes (*C. elegans*) | defaults; see [Notes for nematodes](#notes-for-nematodes) | Benchmarked against WormBase (section 10). 5' ends and SL labels reproduce WormBase closely. Operons are only approximate, and 3' ends are weak when the input UTRs are over-extended. |
 | Organisms whose CAGE has no SL information | `--trans_splicing false` | Every TSS is `nosl`; no acceptor rows and no operons. |
+
+### Notes for nematodes
+
+Tested on *C. elegans* (2026-10-18) with:
+- SLIC-CAGE of total RNA (SRR10568191, PRJNA592867; young-adult hermaphrodites, 15.3 M read pairs), run through luscombeu/cagescan;
+- the WormBase WS298 gene set in NCBI RefSeq format (GCF_000002985.6) as the reference.
+
+Results are in section 10. Practical notes:
+
+1. **Leaders.** Pass SL1 and the SL2 family to cagescan as several leaders (`--sl_sequence SL1=…,SL2a=…`). In SRR10568191, 52% of READ1s start with SL1 (`GGTTTAATTACCCAAGTTTGAG`) and about 6% with ten SL2 variants. The variants used are listed in `utrannotation_runs/celegans/cagescan_run/params.yaml`. Read the main leader of each TSS as `sl_leader`; SL2 marks downstream operon genes [lit: Blumenthal 2012].
+2. **Annotation.** The RefSeq/WormBase GFF3 works as input, since it has the same NCBI format as EGAPx. About 10,000 RefSeq mRNAs are flagged `partial` (no known UTR end). The pipeline leaves those ends alone.
+3. **5' ends.** The defaults work. SL acceptors land on WormBase's SL acceptor sites (99.1% exact). `--sl_window_up 50` (the nematode minimum outron; Conrad 1991, 1995) is an option, but was not needed in this test.
+4. **3' ends.** The PAS rule is reliable only when the input 3' ends are roughly right, or absent. If they are over-extended, it tends to pick chance motifs near the wrong end (section 10). In *C. elegans*, 13% of polyadenylation sites have no detectable PAS, and trans-spliced mRNAs often have none or a variant [lit: Mangone 2010]. Two ways to handle this:
+   - `--pas_motifs` could add AATGAA, the most common *C. elegans* variant [lit: Tian & Graber 2012];
+   - better, use poly(A)-site data where it exists, since WormBase 3' ends come from 3P-Seq [lit: Jan 2011].
+5. **Operons.** Treat `--operons` as approximate. Against WormBase operons (CEOP, WBPS18), adjacent-gene-pair precision is 0.35 and recall 0.38 with the defaults. No setting tested exceeded precision 0.42 (table in section 10). Hybrid operons (internal promoters) are split by our rule, but WormBase keeps them [lit: Blumenthal 2015].
+6. **cagescan with NCBI GTFs.** cagescan's last step, `GFFCOMPARE`, failed on the RefSeq GTF ("no valid ID found for GFF record"). That step only compares cagescan's own transcripts. The TSS cluster outputs used here were complete.
 
 ## 1. Inputs and conventions
 
@@ -262,9 +279,43 @@ So there are two independent switches:
   - **3' ends:** poly(A) reads 21.5%, PAS 53.5%, EGAPx 25.0%.
   - **Non-coding:** 36.6% of 1,437 non-coding transcripts get a CAGE 5' end.
 - **2026-10-18, O10 rerun with the current defaults.** Completed. 65.0% of mRNAs get a CAGE TSS, 43.0% of those `sl` (98.7% AG). PAS ends 71.3%.
+- **2026-10-18, *C. elegans* accuracy benchmark** (`utrannotation_runs/celegans`; scripts in `tests/benchmark/`).
+  - **Setup.**
+    - Reference: WormBase WS298 models via RefSeq GCF_000002985.6, scoring only ends not flagged `partial`. That gives 18,640 known 5' ends and 20,785 known 3' ends.
+    - Inputs built from the reference: "strip" (no UTRs) and "extend" (both ends pushed out by 0–500 nt).
+    - CAGE: SLIC-CAGE total RNA through cagescan, giving 8,413 SL clusters (7,073 mainly SL1, 1,340 mainly SL2) and 15,805 non-SL clusters. 56.7% of read pairs carried a leader.
+  - **5' ends** (output; strip / extend):
+
+    | Class | n | exact | ≤ 5 nt | ≤ 20 nt | median error |
+    | --- | --- | --- | --- | --- | --- |
+    | CAGE `sl` | 7,833 / 8,039 | 60.7% / 60.7% | 75.7% / 75.9% | 89.9% / 90.4% | 0 nt |
+    | CAGE `nosl` | 2,362 / 2,371 | 7.9% / 8.1% | 21.0% / 21.3% | 49.3% / 49.9% | 21 nt |
+    | no CAGE TSS (input end kept) | 8,445 / 8,230 | as input | | | |
+
+    WormBase's 5' ends of non-trans-spliced genes are themselves less certain [lit: Saito 2013].
+  - **SL labels.**
+    - 99.1% of `sl` TSSs (7,763 / 7,833) lie exactly on a WormBase SL acceptor site (WBPS19), and only 3% of `nosl` TSSs have one within 5 nt.
+    - Our main leader agrees with WormBase's site types: of about 7,800 SL TSSs at a WormBase site, only 7 have a leader WormBase does not list there.
+  - **3' ends** (PAS-set ends; strip / extend):
+    - within 5 nt: 44.1% / 20.7%;
+    - within 20 nt: 57.2% / 27.6%;
+    - median error: 9 / 174 nt.
+
+    The reference end lies a median 15 nt (strip) or 14 nt (extend) after the motif end, which confirms `--pas_offset 15`. With over-extended inputs, "closest motif to the input end" picks chance motifs near the wrong end. This is a known weakness (section 11).
+  - **Operons vs WormBase CEOP** (WBPS18, 1,431 operons; adjacent protein-coding pairs):
+
+    | Setting | operons | genes in operons | precision | recall |
+    | --- | --- | --- | --- | --- |
+    | CDS < 500 + non-SL split (default) | 1,894 | 21.3% | 0.347 | 0.383 |
+    | CDS < 500, no split | 2,120 | 24.4% | 0.327 | 0.420 |
+    | CDS < 300 + split | 1,073 | 11.6% | 0.394 | 0.228 |
+    | transcript ends < 200 + split | 1,053 | 11.2% | 0.419 | 0.233 |
+    | evidence-aware, 100 | 1,706 | 18.8% | 0.310 | 0.295 |
+
+    58% of SL2-led genes are downstream genes of our operons, against 5% of SL1-led genes.
 - **Not yet tested:**
   - the I25 and O10 EGAPx annotations (I25 lacks I25-aligned CAGE; the O10 EGAPx run was still in progress);
-  - *Ciona* and *C. elegans*;
+  - *Ciona* (ANISEED KH2012 operons are available in `/bucket/LuscombeU/nico/genomes/ciona_robusta/`, but no *Ciona* CAGE run yet);
   - nf-tests (test data pending; see [development.md](development.md)).
 
 ## 11. Known limitations and open questions
@@ -273,7 +324,7 @@ So there are two independent switches:
 - **Operon gaps ignore UTRs.** CDS distances were more reliable than annotated UTR ends on both genomes tested. With accurate 3' ends (e.g. from poly(A)-site sequencing), `--operon_gap_from transcript` with `--operon_max_gap_tx 100` (or 60 for *O. dioica*) would measure the real intercistronic regions.
 - **Hybrid operons.** In *C. elegans* an operon can have an internal promoter and stay an operon [lit: Blumenthal 2012, 2015]. Our rule splits at any `nosl` TSS outside the SL window.
 - **The DE1/DE2 artefact.** The cause is unknown. Reported upstream as johannesnicolaus/cagescan_nextflow#4.
-- **PAS rules.** The motif and offset are general metazoan values, not measured in tunicates. Chance hexamer matches are common in any genome.
+- **PAS rules.** The motif and offset are general metazoan values; the offset was confirmed on *C. elegans* (median 15 nt). The rule anchors on the input 3' end. When that end is badly over-extended, it picks chance motifs near it: on *C. elegans* with ends pushed out by 0–500 nt, only 21% of PAS-set ends were within 5 nt of the truth, against 44% from inputs without UTRs. A rule that does not depend on the input end, or poly(A)-site data, would be needed to fix this. Not done yet.
 - **`tss_evidence=EGAPx`** is written for kept ends even when the input annotation is not from EGAPx.
 - **Duplicate isoforms.** Isoforms that become identical after the edits are not merged.
 
@@ -294,11 +345,14 @@ So there are two independent switches:
 | 2026-10-18 | **Generic TSS input:** `tss` (cagescan directory or BED) and `tss_sl` replace `cagescan_dir` | Most CAGE is single-end; cagescan needs pairs (issue #5 on cagescan_nextflow). |
 | 2026-10-18 | **Operon gaps:** kept CDS distances < 500 (`--operon_gap_from cds`); added `transcript` and `evidence` modes (`--operon_max_gap_tx 100`) | The user asked to use UTR-based gaps. Tested on I69 EGAPx and O10: UTR ends are too imprecise, giving less SL-consistent operons and breaking the Ganot operon. 500 is the smallest CDS window that keeps the Ganot operon whole. |
 | 2026-10-18 | Correction: *O. dioica* is not AT-rich (O10 41.4% GC) | The earlier rationale for the PAS rule wrongly said it was. |
+| 2026-10-18 | *C. elegans* accuracy benchmark; notes for nematodes; no default changed | 5' ends and SL labels reproduce WormBase closely. `--pas_offset 15` was confirmed. The PAS rule is weak on over-extended inputs, and operons are approximate in nematodes. |
 
 ## References
 
 All checked against PubMed unless noted.
 
+- Mangone M et al. (2010) The landscape of *C. elegans* 3'UTRs. Science 329:432–435. [doi:10.1126/science.1191244](https://doi.org/10.1126/science.1191244)
+- Jan CH, Friedman RC, Ruby JG, Bartel DP (2011) Formation, regulation and evolution of *Caenorhabditis elegans* 3'UTRs. Nature 469:97–101. [doi:10.1038/nature09616](https://doi.org/10.1038/nature09616)
 - Tian B, Graber JH (2012) Signals for pre-mRNA cleavage and polyadenylation. WIREs RNA 3:385–396. [doi:10.1002/wrna.116](https://doi.org/10.1002/wrna.116)
 - Mignone F, Gissi C, Liuni S, Pesole G (2002) Untranslated regions of mRNAs. Genome Biol 3:reviews0004. [doi:10.1186/gb-2002-3-3-reviews0004](https://doi.org/10.1186/gb-2002-3-3-reviews0004)
 - Blumenthal T (2004) Operons in eukaryotes. Brief Funct Genomic Proteomic 3:199–211. [doi:10.1093/bfgp/3.3.199](https://doi.org/10.1093/bfgp/3.3.199)
