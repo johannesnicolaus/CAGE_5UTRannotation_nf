@@ -39,25 +39,26 @@ What changes from the EGAPx GFF3:
 - **3' end:** the 3' end and last exon move to the polyadenylation signal, unless EGAPx had poly(A)-read evidence.
 - **UTR rows:** `five_prime_UTR` and `three_prime_UTR` rows are added for every coding mRNA, one per exonic segment. Their IDs are `utr5-<transcript>-<n>` and `utr3-<transcript>-<n>`, numbered 5' to 3'.
 - **SL marker:** a TSS labelled `sl` adds a 1-bp `trans_splice_acceptor_site` row (SO:0000706, source `CAGE`) at the acceptor, with Parent the mRNA.
+- **TSS at the ATG:** when the TSS is the first base of the CDS (common for SL acceptors), the genomic 5' UTR has length 0. Such an mRNA has no `five_prime_UTR` row but still carries `utr5_evidence=CAGE`, `tss_type` and the other TSS attributes. Its mature 5' UTR is the spliced leader, which is not in the genome.
 - **Unchanged:** CDS rows, IDs, lncRNAs, pseudogenes and all EGAPx attributes. The original exon IDs are kept, even when exons were removed.
 
-Attributes added to the `mRNA` and copied to its UTR rows:
+The pipeline's evidence attributes are on the `mRNA` row only, because they describe the transcript; the `five_prime_UTR` and `three_prime_UTR` rows carry just `ID` and `Parent`:
 
-| Attribute       | Feature        | Meaning                                                                                       |
-| --------------- | -------------- | --------------------------------------------------------------------------------------------- |
-| `utr5_evidence` | mRNA, 5' UTR   | `CAGE` (5' end at a CAGE TSS) or `EGAPx` (no qualifying TSS; EGAPx 5' end kept)               |
-| `tss_type`      | mRNA, 5' UTR   | `sl` (spliced-leader acceptor, trans-spliced) or `nosl`                                       |
-| `tss_id`        | mRNA, 5' UTR   | cagescan TSS cluster (`TC…` broad, `TS…` sharp)                                               |
-| `tss_peak`      | mRNA, 5' UTR   | dominant CTSS, `chrom:position:strand` (1-based); the new 5' end                              |
-| `tss_count`     | mRNA, 5' UTR   | READ1s of the cluster, summed over samples                                                    |
-| `sl_count`      | mRNA, 5' UTR   | of these, READ1s carrying the spliced leader                                                  |
-| `sl_fraction`   | mRNA, 5' UTR   | `sl_count / tss_count`                                                                        |
-| `acceptor_AG`   | mRNA, 5' UTR   | `sl` only: `true` if the two genomic bases before the TSS are AG (the trans-splice acceptor) |
-| `utr5_shift`    | mRNA, 5' UTR   | new minus EGAPx 5' UTR length (positive: extended, negative: trimmed)                         |
-| `utr3_evidence` | mRNA, 3' UTR   | `polyA_reads`, `PAS` or `EGAPx` (see [usage](usage.md#3-end-annotate_utr3))                   |
-| `pas_motif`     | mRNA, 3' UTR   | the polyadenylation signal used                                                               |
-| `pas_pos`       | mRNA, 3' UTR   | its position, `chrom:start-end:strand` (1-based)                                              |
-| `utr3_shift`    | mRNA, 3' UTR   | new minus EGAPx 3' UTR length                                                                 |
+| Attribute       | Meaning                                                                                       |
+| --------------- | --------------------------------------------------------------------------------------------- |
+| `utr5_evidence` | `CAGE` (5' end at a CAGE TSS) or `EGAPx` (no qualifying TSS; EGAPx 5' end kept)               |
+| `tss_type`      | `sl` (spliced-leader acceptor, trans-spliced) or `nosl`                                       |
+| `tss_id`        | cagescan TSS cluster (`TC…` broad, `TS…` sharp)                                               |
+| `tss_peak`      | dominant CTSS, `chrom:position:strand` (1-based); the new 5' end                              |
+| `tss_count`     | READ1s of the cluster, summed over samples                                                    |
+| `sl_count`      | of these, READ1s carrying the spliced leader                                                  |
+| `sl_fraction`   | `sl_count / tss_count`                                                                        |
+| `acceptor_AG`   | `sl` only: `true` if the two genomic bases before the TSS are AG (the trans-splice acceptor) |
+| `utr5_shift`    | new minus EGAPx 5' UTR length (positive: extended, negative: trimmed)                         |
+| `utr3_evidence` | `polyA_reads`, `PAS` or `EGAPx` (see [usage](usage.md#3-end-annotate_utr3))                   |
+| `pas_motif`     | the polyadenylation signal used                                                               |
+| `pas_pos`       | its position, `chrom:start-end:strand` (1-based)                                              |
+| `utr3_shift`    | new minus EGAPx 3' UTR length                                                                 |
 
 ### TSS table
 

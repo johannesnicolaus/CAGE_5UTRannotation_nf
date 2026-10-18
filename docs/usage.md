@@ -88,7 +88,7 @@ All parameters, with defaults, are in the [parameter schema](../nextflow_schema.
 | `--tss_selection`       | `closest_atg` | `closest_atg` or `dominant`                                          |
 | `--tss_min_rel`         | `0.1`         | minimum count relative to the strongest TSS in the window            |
 | `--tss_min_count`       | `0`           | minimum pooled TSS count                                             |
-| `--utr5_min_len`        | `1`           | minimum 5' UTR length                                                |
+| `--utr5_min_len`        | `0`           | minimum 5' UTR length (0: a TSS at the ATG is allowed)               |
 | `--sl_min_fraction`     | `0.5`         | minimum SL read fraction for `tss_type=sl`                           |
 | `--keep_polya_evidence` | `true`        | keep EGAPx 3' ends supported by poly(A) reads                        |
 | `--pas_motifs`          | `AATAAA`      | comma-separated polyadenylation-signal motifs                        |

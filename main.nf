@@ -15,7 +15,7 @@ params {
     tss_max_dist        : Integer = 500
     tss_min_rel         : Float   = 0.1
     tss_min_count       : Float   = 0.0
-    utr5_min_len        : Integer = 1
+    utr5_min_len        : Integer = 0
     sl_min_fraction     : Float   = 0.5
     keep_polya_evidence : Boolean = true
     pas_window          : Integer = 500

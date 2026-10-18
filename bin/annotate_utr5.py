@@ -21,13 +21,15 @@ For every mRNA with a CDS (models open at the 5' end are left alone):
 4. Exons upstream of the TSS are dropped and the first exon starts at the TSS, so the
    UTR is extended or trimmed. CDS rows are never changed.
 
-Attributes added to the mRNA, and copied onto its five_prime_UTR rows:
+Attributes added to the mRNA (the five_prime_UTR rows carry only ID and Parent):
   utr5_evidence  CAGE, or EGAPx when no peak qualified (EGAPx 5' end kept)
   tss_type       sl (spliced-leader acceptor) or nosl
   tss_id, tss_peak (chrom:pos:strand), tss_count, sl_count, sl_fraction
   utr5_shift     new minus old 5' UTR length
   acceptor_AG    sl only: true if the two genomic bases before the TSS are AG
-An sl TSS also gets a 1-bp trans_splice_acceptor_site row (SO:0000706).
+An sl TSS also gets a 1-bp trans_splice_acceptor_site row (SO:0000706). When the TSS is
+at the ATG (5' UTR of length 0, allowed with --min-utr-len 0, common for SL acceptors),
+there is no five_prime_UTR row: the mRNA attributes and the acceptor row still record it.
 """
 
 import argparse
@@ -142,7 +144,8 @@ def main():
     parser.add_argument("--selection", choices=["closest_atg", "dominant"], default="closest_atg")
     parser.add_argument("--min-rel", type=float, default=0.1, help="minimum count relative to the strongest candidate")
     parser.add_argument("--min-count", type=float, default=0, help="minimum pooled count of a TSS")
-    parser.add_argument("--min-utr-len", type=int, default=1, help="minimum 5' UTR length")
+    parser.add_argument("--min-utr-len", type=int, default=0,
+                        help="minimum 5' UTR length; 0 accepts a TSS at the ATG")
     args = parser.parse_args()
 
     ann = Annotation.read(args.gff)

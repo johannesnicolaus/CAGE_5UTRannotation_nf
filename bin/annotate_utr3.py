@@ -20,7 +20,7 @@ that applies sets the 3' end:
                 The 3' UTR is trimmed or extended.
 3. EGAPx        no PAS qualified; the EGAPx 3' end is kept.
 
-Attributes added to the mRNA, and copied onto its three_prime_UTR rows:
+Attributes added to the mRNA (the three_prime_UTR rows carry only ID and Parent):
   utr3_evidence (polyA_reads, PAS, EGAPx), pas_motif, pas_pos (chrom:start-end:strand of
   the motif), utr3_shift (new minus old 3' UTR length).
 """

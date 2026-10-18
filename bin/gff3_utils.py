@@ -23,11 +23,6 @@ TSA = "trans_splice_acceptor_site"
 # UTR rows are always regenerated from exons and CDS, so any in the input are dropped.
 DERIVED_TYPES = {UTR5, UTR3, "5'UTR", "3'UTR", "five_prime_utr", "three_prime_utr"}
 
-# mRNA attributes set by the pipeline that are copied onto the UTR rows of that mRNA.
-UTR5_KEYS = ("utr5_evidence", "tss_type", "tss_id", "tss_peak", "tss_count", "sl_count", "sl_fraction",
-             "acceptor_AG", "utr5_shift")
-UTR3_KEYS = ("utr3_evidence", "pas_motif", "pas_pos", "utr3_shift")
-
 TRANSCRIPT_TYPES = {"mRNA", "transcript", "lncRNA", "ncRNA", "primary_transcript", "snRNA", "snoRNA", "rRNA", "tRNA"}
 
 # Reserved characters that must be escaped in GFF3 attribute values (column 9).
@@ -300,7 +295,8 @@ def feature_core_id(transcript):
 def utr_features(transcript):
     """five_prime_UTR / three_prime_UTR rows of a coding mRNA, numbered 5' -> 3'.
 
-    The rows carry the pipeline's evidence attributes of the mRNA (UTR5_KEYS / UTR3_KEYS).
+    The rows carry only ID and Parent; the evidence attributes are on the mRNA, so they are
+    also there when a UTR has length 0 (e.g. an SL acceptor right at the ATG).
     """
     if transcript.feature.type != "mRNA" or not transcript.is_coding:
         return []
@@ -309,7 +305,6 @@ def utr_features(transcript):
     core = feature_core_id(transcript)
     for kind, segments in ((UTR5, utr5), (UTR3, utr3)):
         ordered = segments if transcript.strand != "-" else list(reversed(segments))
-        keys = UTR5_KEYS if kind == UTR5 else UTR3_KEYS
         for n, (start, end) in enumerate(ordered, 1):
             attrs = collections.OrderedDict()
             f = Feature(transcript.seqid, transcript.feature.source, kind, start, end, ".",
@@ -317,9 +312,6 @@ def utr_features(transcript):
             prefix = "utr5" if kind == UTR5 else "utr3"
             f.set("ID", f"{prefix}-{core}-{n}")
             f.set("Parent", transcript.id)
-            for key in keys:
-                if key in transcript.feature.attrs:
-                    f.attrs[key] = transcript.feature.attrs[key]
             rows.append(f)
     rows.sort(key=lambda f: f.start, reverse=transcript.strand == "-")
     return rows

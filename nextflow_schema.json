@@ -97,9 +97,9 @@
                 },
                 "utr5_min_len": {
                     "type": "integer",
-                    "default": 1,
+                    "default": 0,
                     "minimum": 0,
-                    "description": "Minimum 5' UTR length of a TSS.",
+                    "description": "Minimum 5' UTR length of a TSS. 0 accepts a TSS at the ATG, as at spliced-leader acceptors next to the start codon.",
                     "fa_icon": "fas fa-ruler"
                 },
                 "sl_min_fraction": {
