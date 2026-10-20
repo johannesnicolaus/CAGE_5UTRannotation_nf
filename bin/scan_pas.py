@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Find polyadenylation-signal motifs (default AATAAA) on both strands of a genome.
+"""Find polyadenylation-signal motifs (default AATAAA,ATTAAA) on both strands of a genome.
 
   scan_pas.py --fasta genome.fa --motifs AATAAA[,ATTAAA] --output PREFIX.pas.bed
 
@@ -27,7 +27,7 @@ def main():
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
-    motifs = [m.strip().upper().replace("U", "T") for m in args.motifs.split(",") if m.strip()]
+    motifs = list(dict.fromkeys(m.strip().upper().replace("U", "T") for m in args.motifs.split(",") if m.strip()))
     for m in motifs:
         if not re.fullmatch(r"[ACGT]+", m):
             raise SystemExit(f"ERROR: motif {m!r} must contain only A, C, G, T")

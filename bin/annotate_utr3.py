@@ -11,13 +11,14 @@ that applies sets the 3' end:
                 (disable with --no-keep-polya-evidence).
 2. PAS          a polyadenylation signal (scan_pas.py) on the same strand
                 - entirely downstream of the stop codon,
-                - within --window bases of the EGAPx 3' end, measured along the transcript
-                  (3' UTR exons inside the model, genomic sequence beyond it),
-                - not in a 3' UTR intron, not reaching a CDS of another gene on the same
-                  strand, and not extending the transcript into another gene's transcript
-                  on the same strand (in operons the 3' end stops before the next gene's
-                  5' end, which ANNOTATE_UTR5 has already set; overlaps already present
-                  in EGAPx are not counted).
+                - the new 3' end (motif end + --offset) within --window bases of the EGAPx
+                  3' end, measured along the transcript (3' UTR exons inside the model,
+                  genomic sequence beyond it),
+                - not in a 3' UTR intron, and the new end before the 5' end of every
+                  transcript or CDS of another gene on the same strand that starts
+                  downstream of this stop codon (in operons the 3' end stops before the
+                  next gene's 5' end, which ANNOTATE_UTR5 has already set; if that end
+                  already overlaps this 3' UTR, only trimming PASs qualify).
                 The motif closest to the EGAPx end is used, and the new 3' end is the
                 motif end + --offset bases (cleavage lies ~10-30 nt downstream of AATAAA).
                 The 3' UTR is trimmed or extended.
@@ -49,6 +50,9 @@ def read_pas(path):
     return PointIndex(items)
 
 
+OWNED_KEYS = ("utr3_evidence", "pas_motif", "pas_pos", "utr3_shift")
+
+
 def pas_candidates(t, gene_id, pas_index, cds_index, tx_index, window, offset):
     """(new_end, signed shift along the transcript, motif) for every qualifying PAS."""
     exons = t.exon_intervals()
@@ -58,8 +62,10 @@ def pas_candidates(t, gene_id, pas_index, cds_index, tx_index, window, offset):
     if t.strand == "+":
         end0 = exons[-1][1]
         limit = end0 + window
-        blockers = [s for s, _, _ in cds_index.overlaps(key, end0 + 1, limit, exclude_owner=gene_id)]
-        blockers += [s for s, _, _ in tx_index.overlaps(key, end0 + 1, limit, exclude_owner=gene_id) if s > end0]
+        # other genes' CDSs and transcripts that start downstream of this stop codon block the
+        # 3' end, also when the 5' step moved them into the current 3' UTR
+        blockers = [s for s, _, _ in cds_index.overlaps(key, cds_end + 1, limit, exclude_owner=gene_id) if s > cds_end]
+        blockers += [s for s, _, _ in tx_index.overlaps(key, cds_end + 1, limit, exclude_owner=gene_id) if s > cds_end]
         if blockers:
             limit = min(blockers) - 1
         for ms, (_, me, motif) in pas_index.window(t.seqid, "+", cds_end + 1, limit):
@@ -79,8 +85,8 @@ def pas_candidates(t, gene_id, pas_index, cds_index, tx_index, window, offset):
     else:
         end0 = exons[0][0]
         limit = end0 - window
-        blockers = [e for _, e, _ in cds_index.overlaps(key, limit, end0 - 1, exclude_owner=gene_id)]
-        blockers += [e for _, e, _ in tx_index.overlaps(key, limit, end0 - 1, exclude_owner=gene_id) if e < end0]
+        blockers = [e for _, e, _ in cds_index.overlaps(key, limit, cds_start - 1, exclude_owner=gene_id) if e < cds_start]
+        blockers += [e for _, e, _ in tx_index.overlaps(key, limit, cds_start - 1, exclude_owner=gene_id) if e < cds_start]
         if blockers:
             limit = max(blockers) + 1
         for ms, (_, me, motif) in pas_index.window(t.seqid, "-", limit, cds_start - 1):
@@ -125,6 +131,7 @@ def main():
     args = parser.parse_args()
 
     ann = Annotation.read(args.gff)
+    ann.warn_unsupported(sys.stderr)
     pas_index = read_pas(args.pas)
     cds_index = ann.cds_index()
     tx_index = ann.transcript_index()
@@ -133,6 +140,13 @@ def main():
     for gene, t in ann.coding_transcripts():
         stats["mRNA"] += 1
         f = t.feature
+        for key in OWNED_KEYS:  # attributes of an earlier run
+            f.attrs.pop(key, None)
+        if not t.cds_inside_exons():
+            stats["CDS outside exons, kept"] += 1
+            print(f"WARNING: {t.id}: CDS outside its exons; 3' end not edited", file=sys.stderr)
+            f.set("utr3_evidence", "EGAPx")
+            continue
         if t.three_prime_partial():
             stats["3' partial, kept"] += 1
             f.set("utr3_evidence", "EGAPx")

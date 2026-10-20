@@ -69,7 +69,7 @@ def nearest(sites, seqid, strand, pos):
     keys = [p for p, _ in lst]
     i = bisect.bisect_left(keys, pos)
     best = None
-    for j in (i - 1, i, i + 1):
+    for j in (i - 1, i):
         if 0 <= j < len(lst):
             d = pos - lst[j][0] if strand == "+" else lst[j][0] - pos  # >0: TSS downstream of the site
             if best is None or abs(d) < abs(best[0]):
@@ -98,11 +98,14 @@ def main():
     nosl_near = n_nosl = 0
     gene_leader = {}
     gene_xref = {}
+    xref_pos = {}  # reference gene ID -> position along its strand in transcription order
     for gene, t in ann.transcripts():
         dbx = gene.feature.get("Dbxref") or ""
         m = re.search(args.gene_xref + r":([^,;]+)", dbx)
         if m:
             gene_xref[gene.feature.id] = m.group(1)
+            g = gene.feature
+            xref_pos[m.group(1)] = g.start if g.strand == "+" else -g.end
         f = t.feature
         if f.get("tss_evidence") != "CAGE" or not t.is_coding:
             continue
@@ -149,7 +152,10 @@ def main():
             continue
         m = re.search(r"genes=([^;\n]+)", line)
         if m:
-            ref_lists.append(m.group(1).split(","))
+            # CEOP gene lists are not always in genomic order: sort by position, keeping
+            # only genes known to the annotation, so that pairs are true neighbours
+            genes = [x for x in m.group(1).split(",") if x in xref_pos]
+            ref_lists.append(sorted(genes, key=xref_pos.get))
     known = {gene_xref[g.feature.id] for g in ann.genes
              if g.feature.id in gene_xref and any(t.is_coding for t in g.transcripts)}
     ours = {p for p in pairs_from(ours_lists) if p <= known}

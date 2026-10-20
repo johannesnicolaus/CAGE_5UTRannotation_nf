@@ -1,5 +1,5 @@
 name: annotate_operons
-description: "Group closely spaced same-strand genes into operons, split before genes with a non-SL TSS"
+description: "Group closely spaced same-strand genes into operons, split before genes whose own non-SL TSS dominates"
 keywords:
   - "operon"
   - "spliced leader"
@@ -25,6 +25,10 @@ input:
         type: file
         description: "TSS table from CAGE_TSS_TABLE (with sl / nosl labels)"
         pattern: "*.tss.tsv"
+    - fasta:
+        type: file
+        description: "Genome FASTA; used to infer SL acceptors (AG before the TSS) when no SL read was detected"
+        pattern: "*.{fa,fasta,fna}"
 output:
   gff:
     - - meta:

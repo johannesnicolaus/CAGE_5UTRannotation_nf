@@ -1,5 +1,5 @@
 name: annotate_utr5
-description: "Move the 5' end of coding mRNAs to a CAGE TSS (closest to the ATG or dominant) and annotate sl / nosl 5' UTRs"
+description: "Move the 5' end of coding mRNAs to a CAGE TSS (auto, closest_atg or dominant) and annotate sl / nosl 5' UTRs"
 keywords:
   - "cage"
   - "5' UTR"

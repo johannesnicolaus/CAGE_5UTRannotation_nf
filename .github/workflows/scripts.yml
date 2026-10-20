@@ -1,0 +1,19 @@
+name: Script rule tests
+on:
+  pull_request:
+  push:
+    branches:
+      - dev
+      - master
+  workflow_dispatch:
+
+jobs:
+  test-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run rule tests
+        run: python3 tests/scripts/test_rules.py -v

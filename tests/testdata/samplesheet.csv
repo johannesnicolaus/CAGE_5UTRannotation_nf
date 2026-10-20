@@ -1,0 +1,3 @@
+id,genome,annotation,tss,tss_sl
+ce_cagescan,genome.fa.gz,annotation.gff3.gz,cagescan,
+ce_bed,genome.fa.gz,annotation.gff3.gz,tss_clusters.bed,tss_sl_clusters.bed

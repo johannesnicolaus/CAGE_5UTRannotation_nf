@@ -89,7 +89,7 @@ workflow PIPELINE_INITIALISATION {
     channel
         .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
         .toList()
-        .flatMap { rows -> validateInputSamplesheet(rows) }
+        .flatMap { rows -> validateInputSamplesheet(rows, file(input)) }
         .set { ch_samplesheet }
 
     emit:
@@ -151,12 +151,49 @@ workflow PIPELINE_COMPLETION {
 //
 // Validate the samplesheet rows: [ meta, genome, annotation, tss, tss_sl ], one per annotation
 //
-def validateInputSamplesheet(rows) {
+def validateInputSamplesheet(rows, samplesheet) {
     def duplicated = rows.collect { row -> row[0].id }.countBy { id -> id }.findAll { _id, n -> n > 1 }.keySet()
     if (duplicated) {
         error("Please check input samplesheet -> each id must appear once (one annotation per row): ${duplicated.join(', ')}")
     }
-    return rows
+    return rows.collect { row -> resolveSamplesheetPaths(row, samplesheet) }
+}
+
+//
+// Resolve the file columns of one samplesheet row. Relative paths are taken relative to the
+// samplesheet's own directory (so a samplesheet and its files can be moved together); absolute
+// paths and URLs are used as given. Every file must exist, and TSS BED files must be
+// uncompressed (cagescan and the usual CAGE tools write plain BED).
+//
+def resolveSamplesheetPaths(row, samplesheet) {
+    def (meta, genome, annotation, tss, tss_sl) = row
+    def base = samplesheet.parent
+    def tss_path = resolveSamplesheetPath(tss, 'tss', meta, base)
+    def tss_sl_path = resolveSamplesheetPath(tss_sl, 'tss_sl', meta, base)
+    [ tss_path, tss_sl_path ].each { p ->
+        if (p && p.name.endsWith('.gz')) {
+            error("Sample '${meta.id}': gzipped TSS BED files are not supported (${p.name}); please decompress it.")
+        }
+    }
+    return [
+        meta,
+        resolveSamplesheetPath(genome, 'genome', meta, base),
+        resolveSamplesheetPath(annotation, 'annotation', meta, base),
+        tss_path,
+        tss_sl_path ?: []
+    ]
+}
+
+def resolveSamplesheetPath(value, column, meta, base) {
+    if (!value) {
+        return null
+    }
+    def text = value.toString()
+    def path = (text.startsWith('/') || text =~ /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//) ? file(text) : base.resolve(text)
+    if (!path.exists()) {
+        error("Sample '${meta.id}': ${column} '${text}' not found (relative paths are resolved against the samplesheet's directory, ${base}).")
+    }
+    return path
 }
 
 //
@@ -168,6 +205,7 @@ def toolCitationText() {
             "AGAT (Dainat 2024),",
             "gffread (Pertea and Pertea 2020),",
             "MultiQC (Ewels et al. 2016)",
+            "and Python (Van Rossum and Drake 2009)",
             "."
         ].join(' ').trim()
 
@@ -178,7 +216,9 @@ def toolBibliographyText() {
     def reference_text = [
             "<li>Dainat J. AGAT: Another Gff Analysis Toolkit to handle annotations in any GTF/GFF format. Zenodo. doi: 10.5281/zenodo.3552717</li>",
             "<li>Pertea G, Pertea M. (2020) GFF Utilities: GffRead and GffCompare. F1000Research 9:304. doi: 10.12688/f1000research.23297.2</li>",
-            "<li>Ewels, P., Magnusson, M., Lundin, S., & Käller, M. (2016). MultiQC: summarize analysis results for multiple tools and samples in a single report. Bioinformatics , 32(19), 3047–3048. doi: /10.1093/bioinformatics/btw354</li>"
+            "<li>Ewels, P., Magnusson, M., Lundin, S., & Käller, M. (2016). MultiQC: summarize analysis results for multiple tools and samples in a single report. Bioinformatics, 32(19), 3047–3048. doi: 10.1093/bioinformatics/btw354</li>",
+            "<li>Van Rossum G, Drake FL. (2009) Python 3 Reference Manual. Scotts Valley, CA: CreateSpace.</li>",
+            "<li>Plessy C, et al. (2024) Extreme genome scrambling in marine planktonic Oikopleura dioica cryptic species. Genome Res 34:426–440. doi: 10.1101/gr.278295.123</li>"
         ].join(' ').trim()
 
     return reference_text

@@ -11,44 +11,29 @@
                 "type": "string",
                 "pattern": "^[A-Za-z0-9_.-]+$",
                 "errorMessage": "Annotation id must be provided and may contain only letters, digits, '_', '-' and '.'",
-                "meta": [
-                    "id"
-                ]
+                "meta": ["id"]
             },
             "genome": {
                 "type": "string",
-                "format": "file-path",
-                "exists": true,
                 "pattern": "^\\S+\\.(fa|fasta|fna)(\\.gz)?$",
-                "errorMessage": "Genome FASTA must be provided, cannot contain spaces and must end in .fa, .fasta or .fna (optionally .gz)"
+                "errorMessage": "Genome FASTA must be provided, cannot contain spaces and must end in .fa, .fasta or .fna (optionally .gz). Relative paths are resolved against the samplesheet's directory."
             },
             "annotation": {
                 "type": "string",
-                "format": "file-path",
-                "exists": true,
                 "pattern": "^\\S+\\.gff3?(\\.gz)?$",
-                "errorMessage": "Annotation must be an EGAPx-style GFF3 ending in .gff or .gff3 (optionally .gz), without spaces"
+                "errorMessage": "Annotation must be a GFF3 ending in .gff or .gff3 (optionally .gz), without spaces. Relative paths are resolved against the samplesheet's directory."
             },
             "tss": {
                 "type": "string",
-                "format": "path",
-                "exists": true,
                 "pattern": "^\\S+$",
-                "errorMessage": "tss must be an existing luscombeu/cagescan results directory (containing tss_clusters/) or a BED file of TSS clusters, without spaces"
+                "errorMessage": "tss must be a luscombeu/cagescan results directory (containing tss_clusters/) or an uncompressed BED file of TSS clusters, without spaces. Relative paths are resolved against the samplesheet's directory."
             },
             "tss_sl": {
                 "type": "string",
-                "format": "file-path",
-                "exists": true,
-                "pattern": "^\\S+\\.bed(\\.gz)?$",
-                "errorMessage": "tss_sl must be a BED file of SL trans-splice acceptor clusters (only with BED input in tss)"
+                "pattern": "^\\S+\\.bed$",
+                "errorMessage": "tss_sl must be an uncompressed BED file (.bed) of SL trans-splice acceptor clusters (only with BED input in tss)."
             }
         },
-        "required": [
-            "id",
-            "genome",
-            "annotation",
-            "tss"
-        ]
+        "required": ["id", "genome", "annotation", "tss"]
     }
 }

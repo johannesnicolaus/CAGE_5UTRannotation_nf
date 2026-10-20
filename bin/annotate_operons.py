@@ -18,12 +18,14 @@
    otherwise CDS) are available. Non-coding genes use their transcript ends. Overlapping
    genes join.
 3. An operon is split before a downstream gene when a non-SL (nosl) TSS with at least
-   --split-min-count reads lies on its strand between the stop codon of the previous
-   gene and the gene's start codon (transcript ends for non-coding genes): the gene
-   has its own promoter, however short the intergenic distance (as split_operons()).
+   --split-min-count reads (no relative filter) lies on its strand between the 3' edge of
+   the operon so far (the stop codon with --gap-from cds; the transcript 3' end with the
+   other modes) and the gene's start codon (transcript 5' end for non-coding genes): the
+   gene has its own promoter, however short the intergenic distance (as split_operons()).
    SL acceptor rule (as in annotate_utr5.py): a nosl TSS within --sl-window-up bases
-   upstream or --sl-window-down bases downstream of an sl TSS (default 5) does not split.
-4. Runs of at least --min-genes genes are reported.
+   upstream or --sl-window-down bases downstream of an sl TSS with at least
+   --split-min-count reads (default 5) does not split.
+4. Runs of at least --min-genes (>= 2) genes are reported.
 
 Outputs:
   PREFIX.operons.gff3       one 'operon' row (SO:0000178) per operon; attributes: genes
@@ -41,10 +43,10 @@ import collections
 import statistics
 import sys
 
-from gff3_utils import PointIndex, Annotation, escape
+from gff3_utils import PointIndex, Annotation, escape, read_fasta
 
 
-def read_tss(path):
+def read_tss_rows(path):
     items = []
     with open(path) as handle:
         header = handle.readline().rstrip("\n").split("\t")
@@ -53,8 +55,8 @@ def read_tss(path):
             f = line.rstrip("\n").split("\t")
             items.append((f[col["chrom"]], f[col["strand"]], int(f[col["peak"]]),
                           {"tss_id": f[col["tss_id"]], "count": float(f[col["count"]]),
-                           "tss_type": f[col["tss_type"]]}))
-    return PointIndex(items)
+                           "tss_type": f[col["tss_type"]], "seqid": f[col["chrom"]], "strand": f[col["strand"]]}))
+    return items
 
 
 class GeneInfo:
@@ -168,11 +170,34 @@ def inside_acceptor_zone(pos, strand, sl_positions, window_up, window_down):
     return False
 
 
-def split_run(run, tss_index, split_min_count, window_up, window_down):
-    """Split a run before genes that have a nosl TSS upstream of their start codon.
+def acceptor_dinucleotide(genome, seqid, strand, pos):
+    """True if the two genomic bases before a TSS (in transcription order) are AG."""
+    seq = genome.get(seqid)
+    if seq is None:
+        return False
+    if strand == "+":
+        return pos >= 3 and seq[pos - 3:pos - 1].upper() == "AG"
+    return pos + 2 <= len(seq) and seq[pos:pos + 2].upper() == "CT"
+
+
+def split_run(run, tss_index, split_min_count, window_up, window_down, rule="dominant", is_acceptor=None):
+    """Split a run before genes that have their own promoter: a nosl TSS upstream of their start codon.
+
+    The window runs from the 3' edge of the run so far (the stop codon with --gap-from cds,
+    the transcript 3' end otherwise) to the gene's start codon. A nosl TSS is a candidate if
+    its count is at least split_min_count and it is not in the acceptor zone of an sl TSS
+    with count >= split_min_count (as the SL acceptor rule of ANNOTATE_UTR5).
+      rule 'dominant': split only if the strongest candidate is stronger than every sl TSS
+                       in the window (a gene mainly trans-spliced but with a minor promoter,
+                       as in hybrid operons, stays in the operon);
+      rule 'any':      split at any candidate;
+      rule 'none':     never split.
+    is_acceptor(row, pos): which TSSs count as SL acceptors; by default the sl label. Without
+    SL reads, AG-preceded TSSs are taken as undetected acceptors.
 
     Returns (list of operons, {gene id: splitting TSS row}, {gene id: sl TSS upstream}).
     """
+    is_acceptor = is_acceptor or (lambda row, pos: row["tss_type"] == "sl")
     pieces, splits, sl_upstream = [[run[0]]], {}, {}
     edge = run[0][0].three_prime
     for g, gap in run[1:]:
@@ -180,16 +205,22 @@ def split_run(run, tss_index, split_min_count, window_up, window_down):
             lo, hi = edge + 1, g.atg
         else:
             lo, hi = g.atg, edge - 1
-        pad = max(window_up, window_down, 0)
-        nearby = [(p, row) for p, row in tss_index.window(g.seqid, g.strand, lo - pad, hi + pad) if row["count"] > 0]
-        inside = [(p, row) for p, row in nearby if lo <= p <= hi]
-        acceptors = [p for p, row in nearby if row["tss_type"] == "sl"]
-        nosl = [row for p, row in inside
-                if row["tss_type"] == "nosl" and row["count"] >= split_min_count
+        # acceptors just outside the window can still shadow a nosl TSS inside it
+        pad = hi - lo + 1 if min(window_up, window_down) < 0 else max(window_up, window_down, 0)
+        nearby = [(p, row, is_acceptor(row, p))
+                  for p, row in tss_index.window(g.seqid, g.strand, lo - pad, hi + pad) if row["count"] > 0]
+        inside = [(p, row, acc) for p, row, acc in nearby if lo <= p <= hi]
+        acceptors = [p for p, row, acc in nearby if acc and row["count"] >= split_min_count]
+        nosl = [row for p, row, acc in inside
+                if not acc and row["count"] >= split_min_count
                 and not inside_acceptor_zone(p, g.strand, acceptors, window_up, window_down)]
-        sl_upstream[g.id] = any(row["tss_type"] == "sl" for _, row in inside)
-        if nosl:
-            splits[g.id] = max(nosl, key=lambda r: r["count"])
+        sl_inside = [row["count"] for _, row, acc in inside if acc]
+        sl_upstream[g.id] = bool(sl_inside)
+        best = max(nosl, key=lambda r: r["count"]) if nosl else None
+        if rule == "none" or (rule == "dominant" and best and best["count"] <= max(sl_inside, default=0)):
+            best = None
+        if best:
+            splits[g.id] = best
             pieces.append([(g, gap)])
         else:
             pieces[-1].append((g, gap))
@@ -207,6 +238,11 @@ def main():
     parser.add_argument("--max-gap-tx", type=int, default=100,
                         help="distances between transcript ends below this join genes (--gap-from transcript, evidence)")
     parser.add_argument("--split-min-count", type=float, default=0, help="minimum pooled count of a splitting nosl TSS")
+    parser.add_argument("--split-rule", choices=["dominant", "any", "none"], default="dominant",
+                        help="dominant: split at a nosl TSS stronger than every sl TSS between the genes (default); "
+                             "any: at any nosl TSS; none: distance only")
+    parser.add_argument("--fasta", help="genome; without SL reads in the TSS table, AG-preceded TSSs are taken as "
+                                        "undetected SL acceptors (without it, operons are not split)")
     parser.add_argument("--min-genes", type=int, default=2)
     parser.add_argument("--gap-from", choices=["cds", "transcript", "evidence"], default="cds",
                         help="cds: stop to start codon (default); transcript: transcript ends; evidence: "
@@ -218,9 +254,12 @@ def main():
     parser.add_argument("--biotypes", default="protein_coding",
                         help="comma-separated gene_biotype values of the genes considered ('all' for every gene)")
     args = parser.parse_args()
+    if args.min_genes < 2:
+        parser.error("--min-genes must be at least 2")
 
     ann = Annotation.read(args.gff)
-    tss_index = read_tss(args.tss)
+    tss_items = read_tss_rows(args.tss)
+    tss_index = PointIndex(tss_items)
     biotypes = None if args.biotypes == "all" else set(args.biotypes.split(","))
     def biotype(gene):
         value = gene.feature.get("gene_biotype")
@@ -230,44 +269,72 @@ def main():
 
     genes = [GeneInfo(g, args.gap_from) for g in ann.genes
              if g.transcripts and g.feature.type == "gene" and (biotypes is None or biotype(g) in biotypes)]
+    sl_source, is_acceptor, split_rule = "SL_reads", None, args.split_rule
+    if not any(row["tss_type"] == "sl" and row["count"] > 0 for _, _, _, row in tss_items):
+        # SL data were given but no SL read was recognised (e.g. a wrong leader sequence): the
+        # trans-splice acceptors then appear as nosl TSSs. Acceptors follow an AG (96-99% of sl
+        # TSSs on O10, I69 and C. elegans, against 2-13% of nosl TSSs), so AG-preceded TSSs are
+        # taken as undetected acceptors; without the genome, operons are not split.
+        if args.fasta:
+            genome = dict(read_fasta(args.fasta))
+            sl_source = "AG_inferred"
+            is_acceptor = lambda row, pos, _g=genome: acceptor_dinucleotide(_g, row["seqid"], row["strand"], pos)
+            print("WARNING: no sl TSS with reads in the TSS table (was the spliced leader detected?); "
+                  "operons use AG-preceded TSSs as SL acceptors (sl_source=AG_inferred)", file=sys.stderr)
+        else:
+            sl_source, split_rule = "none", "none"
+            print("WARNING: no sl TSS with reads in the TSS table (was the spliced leader detected?); "
+                  "operons are called from distances only, without splits (sl_source=none)", file=sys.stderr)
 
     operons, rows = [], []
     for run in candidate_runs(genes, args.max_gap_tx, args.gap_from, args.max_gap_cds):
         if len(run) < 2:
             continue
         pieces, splits, sl_upstream = split_run(run, tss_index, args.split_min_count,
-                                                args.sl_window_up, args.sl_window_down)
+                                                args.sl_window_up, args.sl_window_down, split_rule, is_acceptor)
         for piece in pieces:
             operon_index = len(operons) if len(piece) >= args.min_genes else None
             if operon_index is not None:
-                operons.append(piece)
+                operons.append([(g, gap, sl_upstream.get(g.id)) for g, gap in piece])
             for pos, (g, gap) in enumerate(piece, 1):
                 rows.append([operon_index, pos, g, gap, splits.get(g.id), sl_upstream.get(g.id)])
 
     # number operons along the genome
-    order = sorted(range(len(operons)), key=lambda i: (operons[i][0][0].seqid, min(g.start for g, _ in operons[i])))
+    seq_rank = {}
+    for g in genes:  # sequences in the order of the annotation
+        seq_rank.setdefault(g.seqid, len(seq_rank))
+    order = sorted(range(len(operons)), key=lambda i: (seq_rank[operons[i][0][0].seqid], min(g.start for g, _, _ in operons[i])))
     width = max(5, len(str(len(operons))))
     names = [None] * len(operons)
     for rank, i in enumerate(order, 1):
         names[i] = f"operon_{rank:0{width}d}"
 
+    evidence_counts = collections.Counter()
     with open(f"{args.prefix}.operons.gff3", "w") as gff, open(f"{args.prefix}.operons.bed", "w") as bed:
         gff.write("##gff-version 3\n")
         for name, piece in sorted(zip(names, operons)):
             first = piece[0][0]
-            start = min(g.start for g, _ in piece)
-            end = max(g.end for g, _ in piece)
+            start = min(g.start for g, _, _ in piece)
+            end = max(g.end for g, _, _ in piece)
+            n_sl = sum(1 for _, _, up in piece[1:] if up)
+            n_down = len(piece) - 1
+            evidence = "distance" if n_sl == 0 else ("sl" if n_sl == n_down else "partial_sl")
             attrs = [  # list values are comma-separated GFF3 multi-values
                 ("ID", [name]),
                 ("n_genes", [len(piece)]),
-                ("genes", [g.id for g, _ in piece]),
+                ("genes", [g.id for g, _, _ in piece]),
                 ("leader", [first.id]),
-                ("intergenic", [gap for _, gap in piece[1:]]),
-                ("tss_types", [g.tss_type for g, _ in piece]),
+                ("intergenic", [gap for _, gap, _ in piece[1:]]),
+                ("tss_types", [g.tss_type for g, _, _ in piece]),
+                ("sl_upstream", [str(bool(up)).lower() for _, _, up in piece[1:]]),
+                ("downstream_sl", [f"{n_sl}/{n_down}"]),
+                ("operon_evidence", [evidence]),
+                ("sl_source", [sl_source]),
             ]
             gff.write("\t".join([first.seqid, "utrannotation", "operon", str(start), str(end), ".", first.strand, ".",
                                  ";".join(f"{k}={','.join(escape(v) for v in vs)}" for k, vs in attrs)]) + "\n")
             bed.write(f"{first.seqid}\t{start - 1}\t{end}\t{name}\t{len(piece)}\t{first.strand}\n")
+            evidence_counts[evidence] += 1
 
     with open(f"{args.prefix}.operon_genes.tsv", "w") as out:
         out.write("operon_id\tposition\tgene_id\tgene_name\tseqid\tstrand\tstart\tend\t"
@@ -293,13 +360,17 @@ def main():
         out.write("# plot_type: 'table'\n")
         out.write("# pconfig:\n#     id: 'operon_summary_table'\n#     title: 'Operons'\n")
         out.write("Sample\tGenes considered\tOperons\tGenes in operons (%)\tMedian genes per operon\t"
-                  "Largest operon\tSplits at nosl TSS\tDownstream genes with SL TSS (%)\tSplit genes with SL TSS (%)\n")
+                  "Largest operon\tOperons with SL at every downstream gene\tOperons with SL at some\t"
+                  "Operons by distance only\tSplits at nosl TSS\tDownstream genes with SL TSS (%)\t"
+                  "Split genes with SL TSS (%)\tSL source\n")
         out.write("\t".join(str(x) for x in [
             args.prefix, len(genes), len(operons), pct(len(in_operons), len(genes)),
             f"{statistics.median(sizes):g}" if sizes else "NA", max(sizes) if sizes else "NA",
+            evidence_counts["sl"], evidence_counts["partial_sl"], evidence_counts["distance"],
             sum(1 for r in rows if r[4]),
             pct(sum(downstream_sl), len(downstream_sl)),
             pct(sum(split_genes_sl), len(split_genes_sl)),
+            sl_source,
         ]) + "\n")
 
     print(f"{len(genes)} genes, {len(operons)} operons with {len(in_operons)} genes", file=sys.stderr)

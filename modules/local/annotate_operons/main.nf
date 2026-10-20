@@ -8,7 +8,7 @@ process ANNOTATE_OPERONS {
         'quay.io/biocontainers/pysam:0.24.1--py312hf5ad864_0' }"
 
     input:
-    tuple val(meta), path(gff), path(tss)
+    tuple val(meta), path(gff), path(tss), path(fasta)
 
     output:
     tuple val(meta), path("*.operons.gff3")    , emit: gff
@@ -27,6 +27,7 @@ process ANNOTATE_OPERONS {
     annotate_operons.py \\
         --gff ${gff} \\
         --tss ${tss} \\
+        --fasta ${fasta} \\
         ${args} \\
         --prefix ${prefix}
     """

@@ -1,6 +1,6 @@
 # Accuracy benchmark against a trusted annotation
 
-These scripts measure how well the pipeline restores UTRs. They need an annotation whose UTR ends are trusted. The first one used is the *C. elegans* WormBase WS298 gene set in NCBI RefSeq format (GCF_000002985.6), whose 3' ends come largely from poly(A)-site sequencing (Mangone et al. 2010; Jan et al. 2011).
+These scripts measure how well the pipeline restores UTRs. They need an annotation whose UTR ends are trusted. The first one used is the _C. elegans_ WormBase WS298 gene set in NCBI RefSeq format (GCF_000002985.6), whose 3' ends come largely from poly(A)-site sequencing (Mangone et al. 2010; Jan et al. 2011).
 
 1. Make an EGAPx-like input. CDSs are kept and models open at an end (`start_range`/`end_range`) are left alone:
    - `--mode strip`: no UTRs;
@@ -10,6 +10,7 @@ These scripts measure how well the pipeline restores UTRs. They need an annotati
    tests/benchmark/degrade_annotation.py --gff reference.gff3 --mode strip  --output strip.gff3
    tests/benchmark/degrade_annotation.py --gff reference.gff3 --mode extend --output extend.gff3
    ```
+
 2. Run the pipeline on each degraded annotation, with CAGE for the same genome.
 3. Score the output against the reference. Ends that are open in the reference are skipped.
 

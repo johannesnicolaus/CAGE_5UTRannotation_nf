@@ -14,7 +14,7 @@
 
 > NCBI Eukaryotic Genome Annotation Pipeline - External (EGAPx). https://github.com/ncbi/egapx
 
-- [luscombeu/cagescan](https://github.com/johannesnicolaus/cagescan_nextflow) (input TSS clusters)
+- [luscombeu/cagescan](https://github.com/johannesnicolaus/cagescan_nextflow) (input TSS clusters; repository johannesnicolaus/cagescan_nextflow)
 
 > Wibisana JN. luscombeu/cagescan: TSS clusters and 5'-anchored transcripts from paired-end CAGE (CAGEscan) reads.
 
@@ -29,6 +29,18 @@
 - [MultiQC](https://pubmed.ncbi.nlm.nih.gov/27312411/)
 
 > Ewels P, Magnusson M, Lundin S, Käller M. MultiQC: summarize analysis results for multiple tools and samples in a single report. Bioinformatics. 2016 Oct 1;32(19):3047-8. doi: 10.1093/bioinformatics/btw354. Epub 2016 Jun 16. PubMed PMID: 27312411; PubMed Central PMCID: PMC5039924.
+
+- [Python](https://www.python.org)
+
+> Van Rossum G, Drake FL. Python 3 Reference Manual. Scotts Valley, CA: CreateSpace; 2009.
+
+## Methods the rules are based on
+
+The full list, with the claim each supports, is in [docs/rationale.md](docs/rationale.md#references). The main ones:
+
+- Operon definition (intergenic distance ≤ 500 bp, split at non-SL TSSs): Plessy C et al. Extreme genome scrambling in marine planktonic _Oikopleura dioica_ cryptic species. Genome Res. 2024;34:426-440. doi: 10.1101/gr.278295.123.
+- Operon benchmark (cyclin D3 operon): Ganot P et al. Spliced-leader RNA trans splicing in a chordate, _Oikopleura dioica_, with a compact genome. Mol Cell Biol. 2004;24:7795-7805. doi: 10.1128/MCB.24.17.7795-7805.2004.
+- Polyadenylation signals and offset: Tian B, Graber JH. Signals for pre-mRNA cleavage and polyadenylation. WIREs RNA. 2012;3:385-396. doi: 10.1002/wrna.116.
 
 ## Software packaging/containerisation tools
 

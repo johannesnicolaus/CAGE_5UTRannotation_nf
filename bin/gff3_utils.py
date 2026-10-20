@@ -161,6 +161,10 @@ class Transcript:
             return right, left
         return left, right
 
+    def cds_inside_exons(self):
+        """True if every CDS row lies inside an exon (models violating this are skipped)."""
+        return all(any(e.start <= c.start and c.end <= e.end for e in self.exons) for c in self.cds)
+
     def utr_lengths(self):
         utr5, utr3 = self.utr_segments()
         return sum(e - s + 1 for s, e in utr5), sum(e - s + 1 for s, e in utr3)
@@ -187,6 +191,8 @@ class Annotation:
         self.header = []
         self.genes = []
         self.orphans = []  # rows whose parent chain does not reach a gene; written unchanged
+        self.n_multi_parent = 0
+        self.n_without_exons = 0
 
     @classmethod
     def read(cls, path):
@@ -242,7 +248,21 @@ class Annotation:
                 ann.orphans.append(f)
         for t in transcripts.values():
             t.sort()
+        ann.n_multi_parent = sum(1 for f in rows if f.parent and "," in f.parent)
+        ann.n_without_exons = sum(1 for t in transcripts.values() if not t.exons)
         return ann
+
+    def warn_unsupported(self, stream):
+        """Report rows the model cannot place (multi-parent children, orphans) and transcripts
+        without exons; these are written back unchanged and not edited."""
+        if self.n_multi_parent:
+            print(f"WARNING: {self.n_multi_parent} rows have several parents (e.g. shared exons); "
+                  "they are kept unchanged and their transcripts are not edited", file=stream)
+        if self.orphans:
+            print(f"WARNING: {len(self.orphans)} rows have a parent that is not a gene or transcript; "
+                  "they are written unchanged at the end", file=stream)
+        if self.n_without_exons:
+            print(f"WARNING: {self.n_without_exons} transcripts have no exon rows and are not edited", file=stream)
 
     def transcripts(self):
         for gene in self.genes:
@@ -256,8 +276,11 @@ class Annotation:
                 yield gene, t
 
     def noncoding_transcripts(self):
+        """Non-coding transcripts whose 5' end can move: not under a pseudogene, not open at the 5' end."""
         for gene, t in self.transcripts():
-            if t.feature.type in NONCODING_TSS_TYPES and not t.is_coding and t.exons:
+            if (t.feature.type in NONCODING_TSS_TYPES and not t.is_coding and t.exons
+                    and gene.feature.type != "pseudogene" and gene.feature.get("gene_biotype") != "pseudogene"
+                    and not t.five_prime_partial()):
                 yield gene, t
 
     def transcript_index(self):

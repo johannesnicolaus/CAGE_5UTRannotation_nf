@@ -1,0 +1,168 @@
+{
+    "-profile test": {
+        "content": [
+            {
+                "AGAT_CONVERTSPGFF2GTF": {
+                    "agat": "1.6.1"
+                },
+                "AGAT_SPSTATISTICS": {
+                    "agat": "1.6.1"
+                },
+                "ANNOTATE_OPERONS": {
+                    "python": "3.12.14"
+                },
+                "ANNOTATE_UTR3": {
+                    "python": "3.12.14"
+                },
+                "ANNOTATE_UTR5": {
+                    "python": "3.12.14"
+                },
+                "CAGE_TSS_TABLE": {
+                    "python": "3.12.14"
+                },
+                "GFFREAD": {
+                    "gffread": "0.12.7"
+                },
+                "GUNZIP": {
+                    "gunzip": 1.13
+                },
+                "SCAN_PAS": {
+                    "python": "3.12.14"
+                },
+                "UTR_STATS": {
+                    "python": "3.12.14"
+                },
+                "Workflow": {
+                    "luscombeu/utrannotation": "v1.0.0dev"
+                }
+            },
+            [
+                "annotation",
+                "annotation/ce_bed.utr.gff3",
+                "annotation/ce_bed.utr.gtf",
+                "annotation/ce_bed.utr.proteins.fasta",
+                "annotation/ce_bed.utr.transcripts.fasta",
+                "annotation/ce_cagescan.utr.gff3",
+                "annotation/ce_cagescan.utr.gtf",
+                "annotation/ce_cagescan.utr.proteins.fasta",
+                "annotation/ce_cagescan.utr.transcripts.fasta",
+                "annotation/intermediate",
+                "annotation/intermediate/ce_bed.utr3.log",
+                "annotation/intermediate/ce_bed.utr5.log",
+                "annotation/intermediate/ce_cagescan.utr3.log",
+                "annotation/intermediate/ce_cagescan.utr5.log",
+                "multiqc",
+                "multiqc/multiqc_data",
+                "multiqc/multiqc_data/llms-full.txt",
+                "multiqc/multiqc_data/multiqc.log",
+                "multiqc/multiqc_data/multiqc.parquet",
+                "multiqc/multiqc_data/multiqc_citations.txt",
+                "multiqc/multiqc_data/multiqc_data.json",
+                "multiqc/multiqc_data/multiqc_operon_summary_table.txt",
+                "multiqc/multiqc_data/multiqc_software_versions.txt",
+                "multiqc/multiqc_data/multiqc_sources.txt",
+                "multiqc/multiqc_data/multiqc_utr3_length_plot.txt",
+                "multiqc/multiqc_data/multiqc_utr5_length_plot.txt",
+                "multiqc/multiqc_data/multiqc_utr_summary_table.txt",
+                "multiqc/multiqc_plots",
+                "multiqc/multiqc_plots/pdf",
+                "multiqc/multiqc_plots/pdf/operon_summary_table.pdf",
+                "multiqc/multiqc_plots/pdf/utr3_length_plot-cnt.pdf",
+                "multiqc/multiqc_plots/pdf/utr3_length_plot-pct.pdf",
+                "multiqc/multiqc_plots/pdf/utr5_length_plot-cnt.pdf",
+                "multiqc/multiqc_plots/pdf/utr5_length_plot-pct.pdf",
+                "multiqc/multiqc_plots/pdf/utr_summary_table.pdf",
+                "multiqc/multiqc_plots/png",
+                "multiqc/multiqc_plots/png/operon_summary_table.png",
+                "multiqc/multiqc_plots/png/utr3_length_plot-cnt.png",
+                "multiqc/multiqc_plots/png/utr3_length_plot-pct.png",
+                "multiqc/multiqc_plots/png/utr5_length_plot-cnt.png",
+                "multiqc/multiqc_plots/png/utr5_length_plot-pct.png",
+                "multiqc/multiqc_plots/png/utr_summary_table.png",
+                "multiqc/multiqc_plots/svg",
+                "multiqc/multiqc_plots/svg/operon_summary_table.svg",
+                "multiqc/multiqc_plots/svg/utr3_length_plot-cnt.svg",
+                "multiqc/multiqc_plots/svg/utr3_length_plot-pct.svg",
+                "multiqc/multiqc_plots/svg/utr5_length_plot-cnt.svg",
+                "multiqc/multiqc_plots/svg/utr5_length_plot-pct.svg",
+                "multiqc/multiqc_plots/svg/utr_summary_table.svg",
+                "multiqc/multiqc_report.html",
+                "operons",
+                "operons/ce_bed.operon_genes.tsv",
+                "operons/ce_bed.operon_summary_mqc.tsv",
+                "operons/ce_bed.operons.bed",
+                "operons/ce_bed.operons.gff3",
+                "operons/ce_cagescan.operon_genes.tsv",
+                "operons/ce_cagescan.operon_summary_mqc.tsv",
+                "operons/ce_cagescan.operons.bed",
+                "operons/ce_cagescan.operons.gff3",
+                "pas",
+                "pas/ce_bed.pas.bed",
+                "pas/ce_cagescan.pas.bed",
+                "pipeline_info",
+                "pipeline_info/utrannotation_software_mqc_versions.yml",
+                "stats",
+                "stats/agat",
+                "stats/agat/ce_bed.egapx.stats.txt",
+                "stats/agat/ce_bed.utr.stats.txt",
+                "stats/agat/ce_cagescan.egapx.stats.txt",
+                "stats/agat/ce_cagescan.utr.stats.txt",
+                "stats/ce_bed.utr3_length_mqc.tsv",
+                "stats/ce_bed.utr5_length_mqc.tsv",
+                "stats/ce_bed.utr_per_transcript.tsv",
+                "stats/ce_bed.utr_summary_mqc.tsv",
+                "stats/ce_cagescan.utr3_length_mqc.tsv",
+                "stats/ce_cagescan.utr5_length_mqc.tsv",
+                "stats/ce_cagescan.utr_per_transcript.tsv",
+                "stats/ce_cagescan.utr_summary_mqc.tsv",
+                "tss",
+                "tss/ce_bed.tss.tsv",
+                "tss/ce_cagescan.tss.tsv"
+            ],
+            [
+                "ce_bed.utr.gff3:md5,58b4bec7947f831209b16a7480d2e439",
+                "ce_bed.utr.gtf:md5,cdc3c55e4eb51382bb5b45d341fa9db1",
+                "ce_bed.utr.proteins.fasta:md5,35419a10422549b16f59f5a5255f6eac",
+                "ce_bed.utr.transcripts.fasta:md5,3a14fa05244b55b30da8bcde19d05c78",
+                "ce_cagescan.utr.gff3:md5,09e805592580f19ac64a8e984bd61081",
+                "ce_cagescan.utr.gtf:md5,deb2adc08b6dbe9a7541e41f23473405",
+                "ce_cagescan.utr.proteins.fasta:md5,35419a10422549b16f59f5a5255f6eac",
+                "ce_cagescan.utr.transcripts.fasta:md5,3a14fa05244b55b30da8bcde19d05c78",
+                "ce_bed.utr3.log:md5,c233227f11e52bf861a5f651683a0fa8",
+                "ce_bed.utr5.log:md5,e58e7d95932522316a560669a4c284a9",
+                "ce_cagescan.utr3.log:md5,c233227f11e52bf861a5f651683a0fa8",
+                "ce_cagescan.utr5.log:md5,e58e7d95932522316a560669a4c284a9",
+                "multiqc_citations.txt:md5,4c806e63a283ec1b7e78cdae3a923d4f",
+                "multiqc_operon_summary_table.txt:md5,c53e8c04062d926ac1589be8c16bcea4",
+                "multiqc_utr3_length_plot.txt:md5,76e66d534ae9d88ff9d91032437a9c8b",
+                "multiqc_utr5_length_plot.txt:md5,b1c18199592d7119cad3b88ed1959238",
+                "multiqc_utr_summary_table.txt:md5,7f8fadf86ffcaa247e4597132661d537",
+                "ce_bed.operon_genes.tsv:md5,d8ec407aa321b6a3b7032fc63db2b6de",
+                "ce_bed.operon_summary_mqc.tsv:md5,8e9730cf0b5a318a83ba9389a0150e27",
+                "ce_bed.operons.bed:md5,41157cddedf069fd726846a7f98eb513",
+                "ce_bed.operons.gff3:md5,4c1709d11c592771a76f582c0160df00",
+                "ce_cagescan.operon_genes.tsv:md5,d8ec407aa321b6a3b7032fc63db2b6de",
+                "ce_cagescan.operon_summary_mqc.tsv:md5,83378e6c36ed78c2691444eb7ff2f13e",
+                "ce_cagescan.operons.bed:md5,41157cddedf069fd726846a7f98eb513",
+                "ce_cagescan.operons.gff3:md5,4c1709d11c592771a76f582c0160df00",
+                "ce_bed.pas.bed:md5,69ffa04d76226a21b635bbe3e868f877",
+                "ce_cagescan.pas.bed:md5,69ffa04d76226a21b635bbe3e868f877",
+                "ce_bed.utr3_length_mqc.tsv:md5,429e50d3a9195473269c3d7fde882775",
+                "ce_bed.utr5_length_mqc.tsv:md5,b11d826b7b9c5c787dc316d65346e6e1",
+                "ce_bed.utr_per_transcript.tsv:md5,0f38e7ccca3270a7c12acaf2d84605a5",
+                "ce_bed.utr_summary_mqc.tsv:md5,2062f066f0826935c3660304ee61da7b",
+                "ce_cagescan.utr3_length_mqc.tsv:md5,ca5b0a5010c5fccdf0cb9b554bb466b4",
+                "ce_cagescan.utr5_length_mqc.tsv:md5,b4f532a75da287bb67ca3724c5aa6236",
+                "ce_cagescan.utr_per_transcript.tsv:md5,0f38e7ccca3270a7c12acaf2d84605a5",
+                "ce_cagescan.utr_summary_mqc.tsv:md5,01ab4de07292e52c9ad077a15feb210b",
+                "ce_bed.tss.tsv:md5,930d3c69b83544bdd64437d7738f1de8",
+                "ce_cagescan.tss.tsv:md5,a20f8c2a5c2e6a9d16f843a743987db7"
+            ]
+        ],
+        "timestamp": "2026-10-20T13:04:00.359521227",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.0"
+        }
+    }
+}

@@ -1,5 +1,5 @@
 name: scan_pas
-description: "Find polyadenylation-signal motifs (default AATAAA) on both strands of a genome"
+description: "Find polyadenylation-signal motifs (default AATAAA,ATTAAA) on both strands of a genome"
 keywords:
   - "polyadenylation"
   - "motif"

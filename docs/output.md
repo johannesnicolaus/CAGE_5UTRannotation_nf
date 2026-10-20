@@ -38,32 +38,34 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes d
 What changes from the EGAPx GFF3:
 
 - **5' end:** the 5' end of coding `mRNA`s, lncRNAs and misc_RNA `transcript`s, and of their first exon, moves to the chosen TSS. Exons upstream of it are removed. `gene` rows are resized to their transcripts.
-- **3' end:** the 3' end and last exon move to the polyadenylation signal, unless EGAPx had poly(A)-read evidence.
+- **3' end:** the 3' end and last exon move to the polyadenylation-signal motif end + `--pas_offset` (15), unless EGAPx had poly(A)-read evidence.
 - **UTR rows:** `five_prime_UTR` and `three_prime_UTR` rows are added for every coding mRNA, one per exonic segment. Their IDs are `utr5-<transcript>-<n>` and `utr3-<transcript>-<n>`, numbered 5' to 3'.
 - **SL marker:** a TSS labelled `sl` adds a 1-bp `trans_splice_acceptor_site` row (SO:0000706, source `CAGE`) at the acceptor, with Parent the mRNA.
 - **TSS at the ATG:** when the TSS is the first base of the CDS (common for SL acceptors), the genomic 5' UTR has length 0. Such an mRNA has no `five_prime_UTR` row but still carries `tss_evidence=CAGE`, `tss_type` and the other TSS attributes. Its mature 5' UTR is the spliced leader, which is not in the genome.
-- **Unchanged:** CDS rows, IDs, lncRNAs, pseudogenes and all EGAPx attributes. The original exon IDs are kept, even when exons were removed.
+- **Unchanged:** CDS rows, IDs, pseudogenes, 3' ends of non-coding transcripts, and all EGAPx attributes. The original exon IDs are kept, even when exons were removed.
 
 The pipeline's evidence attributes are on the transcript row only (`mRNA`, `lncRNA`, `transcript`), because they describe the transcript; the `five_prime_UTR` and `three_prime_UTR` rows carry just `ID` and `Parent`:
 
-| Attribute       | Meaning                                                                                       |
-| --------------- | --------------------------------------------------------------------------------------------- |
-| `tss_evidence`  | `CAGE` (5' end at a CAGE TSS) or `EGAPx` (no qualifying TSS; EGAPx 5' end kept); also on lncRNAs and misc_RNAs |
-| `tss_type`      | `sl` (spliced-leader acceptor, trans-spliced) or `nosl`                                       |
-| `tss_id`        | cagescan TSS cluster (`TC…` broad, `TS…` sharp)                                               |
-| `tss_peak`      | dominant CTSS, `chrom:position:strand` (1-based); the new 5' end                              |
-| `tss_count`     | READ1s of the cluster, summed over samples                                                    |
-| `sl_count`      | of these, READ1s carrying the spliced leader                                                  |
-| `sl_fraction`   | `sl_count / tss_count`                                                                        |
-| `sl_leader`     | `sl` only, when cagescan searched for several leaders: the main leader of the TSS (e.g. SL1, SL2) |
-| `nosl_tss_peak`, `nosl_tss_count` | `sl` TSS only: the strongest non-SL TSS of the transcript that passed the filters (an outron start, or the TSS of a non-trans-spliced RNA) |
+| Attribute                               | Meaning                                                                                                                                      |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tss_evidence`                          | `CAGE` (5' end at a CAGE TSS) or `EGAPx` (no qualifying TSS; EGAPx 5' end kept); also on lncRNAs and misc_RNAs                               |
+| `tss_type`                              | `sl` (spliced-leader acceptor, trans-spliced) or `nosl`                                                                                      |
+| `tss_id`                                | TSS cluster ID (cagescan: `TC…` non-SL and `SL…` SL clusters; BED input: the BED name)                                                       |
+| `tss_peak`                              | dominant CTSS, `chrom:position:strand` (1-based); the new 5' end                                                                             |
+| `tss_count`                             | cagescan: READ1s of the cluster, summed over samples; BED input: the BED score                                                               |
+| `sl_count`                              | of these, READ1s carrying the spliced leader (BED input: the score of `tss_sl` clusters)                                                     |
+| `sl_fraction`                           | `sl_count / tss_count`                                                                                                                       |
+| `sl_leader`                             | `sl` only, when cagescan searched for several leaders: the main leader of the TSS (e.g. SL1, SL2)                                            |
+| `nosl_tss_peak`, `nosl_tss_count`       | `sl` TSS only: the strongest non-SL TSS of the transcript that passed the filters (an outron start, or the TSS of a non-trans-spliced RNA)   |
 | `sl_acceptor_peak`, `sl_acceptor_count` | `nosl` TSS only: the strongest SL acceptor of the transcript that passed the count filters, i.e. the transcript also makes trans-spliced RNA |
-| `acceptor_AG`   | `sl` only: `true` if the two genomic bases before the TSS are AG (the trans-splice acceptor) |
-| `tss_shift`     | bases added (positive) or removed (negative) at the 5' end                                    |
-| `utr3_evidence` | `polyA_reads`, `PAS` or `EGAPx` (see [usage](usage.md#3-end-annotate_utr3))                   |
-| `pas_motif`     | the polyadenylation signal used                                                               |
-| `pas_pos`       | its position, `chrom:start-end:strand` (1-based)                                              |
-| `utr3_shift`    | new minus EGAPx 3' UTR length                                                                 |
+| `acceptor_AG`                           | `sl` only: `true` if the two genomic bases before the TSS are AG (the trans-splice acceptor)                                                 |
+| `tss_shift`                             | bases added (positive) or removed (negative) at the 5' end                                                                                   |
+| `utr3_evidence`                         | `polyA_reads`, `PAS` or `EGAPx` (see [usage](usage.md#3-end-annotate_utr3))                                                                  |
+| `pas_motif`                             | the polyadenylation signal used                                                                                                              |
+| `pas_pos`                               | its position, `chrom:start-end:strand` (1-based)                                                                                             |
+| `utr3_shift`                            | new minus EGAPx 3' UTR length                                                                                                                |
+
+The `trans_splice_acceptor_site` row carries `ID`, `Parent`, `tss_id`, `sl_fraction` and, with several leaders, `sl_leader`.
 
 ### TSS table
 
@@ -71,9 +73,9 @@ The pipeline's evidence attributes are on the transcript row only (`mRNA`, `lncR
 <summary>Output files</summary>
 
 - `tss/`
-  - `<id>.tss.tsv`: one row per cagescan TSS cluster. The columns are:
-    - `chrom`, `peak` (dominant CTSS, 1-based), `strand`, `tss_id` (`TC…` non-SL, `SL…` trans-splice site clusters);
-    - `count`, `sl_count` (summed over samples);
+  - `<id>.tss.tsv`: one row per TSS cluster. The columns are:
+    - `chrom`, `peak` (dominant CTSS, 1-based), `strand`, `tss_id` (cagescan: `TC…` non-SL, `SL…` trans-splice site clusters; BED input: the BED name, made unique);
+    - `count`, `sl_count` (cagescan: summed over samples; BED input: the score);
     - `sl_fraction`, `tss_type` (`sl` / `nosl`), `sl_leader` (main leader with several leaders, else `NA`).
 
 </details>
@@ -96,22 +98,26 @@ The pipeline's evidence attributes are on the transcript row only (`mRNA`, `lncR
 <details markdown="1">
 <summary>Output files</summary>
 
-- `operons/` (only for genomes whose cagescan results have spliced-leader counts, with `--operons` and `--trans_splicing` on)
+- `operons/` (only for genomes with SL data, i.e. cagescan spliced-leader counts or a `tss_sl` BED, with `--operons` and `--trans_splicing` on)
   - `<id>.operons.gff3`: one `operon` row (SO:0000178) per operon. Attributes:
     - `genes`: in transcription order;
     - `leader`: the first gene;
     - `n_genes`;
-    - `intergenic`: distances between consecutive genes, in bases, negative for overlaps;
-    - `tss_types`: the TSS type of each gene.
+    - `intergenic`: for each gene after the first, the distance from the 3'-most edge of the operon so far, in bases, negative for overlaps. With `--operon_gap_from cds` this is from the stop codon to the start codon; with `transcript` it is between transcript ends; `evidence` uses one or the other per pair;
+    - `tss_types`: the 5' end type of each gene from the UTR step (`sl` if any of its transcripts has an `sl` TSS, `nosl`, or `NA` without a CAGE TSS);
+    - `sl_upstream`: for each gene after the first, `true` if an SL TSS lies between it and the previous gene;
+    - `downstream_sl`: the number of downstream genes with `sl_upstream=true`, out of all downstream genes (e.g. `2/3`);
+    - `operon_evidence`: `sl` (every downstream gene SL-supported), `partial_sl` (some) or `distance` (none; grouped by distance only);
+    - `sl_source`: `SL_reads` (SL labels from the CAGE reads), `AG_inferred` (no SL TSS in the data, acceptors inferred from an AG before the TSS) or `none` (no splits).
   - `<id>.operons.bed`: the same as BED6, with name = operon ID and score = number of genes.
-  - `<id>.operon_genes.tsv`: one row per gene of a candidate run, i.e. before splitting. Columns:
-    - operon ID, or `NA` when a split left the gene alone;
-    - position in the operon;
-    - distance to the previous gene;
-    - TSS type and SL fraction;
-    - whether an SL TSS lies between the previous gene and the start codon;
-    - the non-SL TSS that split the run before this gene, if any.
-  - `<id>.operon_summary_mqc.tsv`: summary shown in MultiQC.
+  - `<id>.operon_genes.tsv`: one row per gene of a candidate run of 2 or more genes, i.e. before splitting. Columns:
+    - `operon_id`, or `NA` when a split left the gene alone; `position` in the operon;
+    - `gene_id`, `gene_name`, `seqid`, `strand`, `start`, `end`;
+    - `distance_to_previous` (as `intergenic`);
+    - `tss_type` and `sl_fraction`;
+    - `sl_tss_upstream`: whether an SL TSS lies between the previous gene and the start codon;
+    - `split_by_tss`, `split_tss_count`: the non-SL TSS that split the run before this gene, if any, and its count.
+  - `<id>.operon_summary_mqc.tsv`: summary shown in MultiQC: operons and genes in operons, operons by `operon_evidence`, splits, the share of downstream and of split-off genes with an SL TSS, and the SL source.
 
 </details>
 
@@ -124,9 +130,10 @@ The pipeline's evidence attributes are on the transcript row only (`mRNA`, `lncR
   - `<id>.utr_per_transcript.tsv`: one row per coding mRNA, with 5' and 3' UTR lengths in EGAPx and in the output, plus the evidence and TSS / PAS attributes.
   - `<id>.utr_summary_mqc.tsv`: the summary table shown in MultiQC. It gives:
     - % of mRNAs with a CAGE TSS, % sl, % sl with AG;
-    - extended and trimmed UTRs;
-    - median and mean UTR lengths before and after;
-    - the share of 3' ends set by each rule.
+    - extended and trimmed 5' and 3' UTRs;
+    - median and mean UTR lengths before and after, **over mRNAs with a UTR longer than 0** (SL acceptors at the ATG are left out);
+    - the share of 3' ends set by each rule;
+    - non-coding transcripts, with % CAGE and % sl.
   - `<id>.utr5_length_mqc.tsv`, `<id>.utr3_length_mqc.tsv`: UTR length distributions before and after, shown in MultiQC.
 - `stats/agat/`
   - `<id>.egapx.stats.txt`, `<id>.utr.stats.txt`: `agat_sp_statistics.pl` of the input and output annotations.
@@ -155,10 +162,10 @@ Results generated by MultiQC collate the UTR summary table and UTR length distri
 <summary>Output files</summary>
 
 - `pipeline_info/`
-  - Reports generated by Nextflow: `execution_report.html`, `execution_timeline.html`, `execution_trace.txt` and `pipeline_dag.dot`/`pipeline_dag.svg`.
-  - Reports generated by the pipeline: `pipeline_report.html`, `pipeline_report.txt` and `software_versions.yml`. The `pipeline_report*` files will only be present if the `--email` / `--email_on_fail` parameter's are used when running the pipeline.
-  - Reformatted samplesheet files used as input to the pipeline: `samplesheet.valid.csv`.
-  - Parameters used by the pipeline run: `params.json`.
+  - Reports generated by Nextflow: `execution_report_<timestamp>.html`, `execution_timeline_<timestamp>.html`, `execution_trace_<timestamp>.txt` and `pipeline_dag_<timestamp>.html`.
+  - Software versions: `utrannotation_software_mqc_versions.yml`.
+  - Parameters used by the pipeline run: `params_<timestamp>.json`.
+  - `pipeline_report.html` and `pipeline_report.txt`, only when `--email` / `--email_on_fail` is used.
 
 </details>
 

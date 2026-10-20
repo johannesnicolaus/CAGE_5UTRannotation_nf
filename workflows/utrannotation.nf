@@ -81,9 +81,10 @@ workflow UTRANNOTATION {
     ANNOTATE_OPERONS(
         ch_utr_gff
             .join(CAGE_TSS_TABLE.out.tsv, failOnMismatch: true)
+            .join(ch_fasta, failOnMismatch: true)
             .join(ch_has_sl, failOnMismatch: true)
-            .filter { _meta, _gff, _tss, has_sl -> has_sl && params.operons }
-            .map { meta, gff, tss, _has_sl -> [ meta, gff, tss ] }
+            .filter { _meta, _gff, _tss, _fasta, has_sl -> has_sl && params.operons }
+            .map { meta, gff, tss, fasta, _has_sl -> [ meta, gff, tss, fasta ] }
     )
     ch_multiqc_files = ch_multiqc_files.mix(ANNOTATE_OPERONS.out.mqc.map { _meta, file -> file })
 

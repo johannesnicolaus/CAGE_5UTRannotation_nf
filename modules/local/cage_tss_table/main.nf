@@ -8,7 +8,7 @@ process CAGE_TSS_TABLE {
         'quay.io/biocontainers/pysam:0.24.1--py312hf5ad864_0' }"
 
     input:
-    tuple val(meta), path(clusters), path(counts), path(sl_counts), path(sl_leaders), path(sl_bed)
+    tuple val(meta), path(clusters), path(counts), path(sl_counts), path(sl_leaders), path(sl_bed, stageAs: "sl_clusters/*")
 
     output:
     tuple val(meta), path("*.tss.tsv"), emit: tsv

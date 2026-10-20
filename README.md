@@ -1,6 +1,5 @@
 # luscombeu/utrannotation
 
-
 [![GitHub Actions CI Status](https://github.com/luscombeu/utrannotation/actions/workflows/nf-test.yml/badge.svg)](https://github.com/luscombeu/utrannotation/actions/workflows/nf-test.yml)
 [![GitHub Actions Linting Status](https://github.com/luscombeu/utrannotation/actions/workflows/linting.yml/badge.svg)](https://github.com/luscombeu/utrannotation/actions/workflows/linting.yml)[![Cite with Zenodo](http://img.shields.io/badge/DOI-10.5281/zenodo.XXXXXXX-1073c8?labelColor=000000)](https://doi.org/10.5281/zenodo.XXXXXXX)
 [![nf-test](https://img.shields.io/badge/unit_tests-nf--test-337ab7.svg)](https://www.nf-test.com)
@@ -14,25 +13,26 @@
 
 ## Introduction
 
-**luscombeu/utrannotation** adds UTRs to [EGAPx](https://github.com/ncbi/egapx) genome annotations. It uses CAGE TSS clusters for the 5' ends: the results of [luscombeu/cagescan](https://github.com/johannesnicolaus/cagescan_nextflow), or BED files of TSS clusters from any CAGE workflow, single- or paired-end and polyadenylation evidence for the 3' ends. It was written for *Oikopleura dioica*, where a large share of genes are trans-spliced to a spliced leader (SL) and genes are tightly packed.
+**luscombeu/utrannotation** adds UTRs to [EGAPx](https://github.com/ncbi/egapx) genome annotations. It uses CAGE TSS clusters for the 5' ends: the results of [luscombeu/cagescan](https://github.com/johannesnicolaus/cagescan_nextflow), or BED files of TSS clusters from any CAGE workflow, single- or paired-end and polyadenylation evidence for the 3' ends. It was written for _Oikopleura dioica_, where a large share of genes are trans-spliced to a spliced leader (SL) and genes are tightly packed.
 
 EGAPx models carry no TSS or trans-splicing information. Without long reads, their UTRs come from short-read coverage only and are often over-extended. For each coding mRNA, the pipeline does the following:
 
 1. **5' end: moved to a CAGE TSS.** lncRNAs and misc_RNAs also get a CAGE 5' end, using the strongest TSS near their EGAPx 5' end.
-   - It uses the dominant CTSS of a cagescan TSS cluster within `--tss_max_dist` (500) bases of the ATG.
-   - By default it takes the TSS closest to the ATG among peaks at least `--tss_min_rel` (10%) as strong as the strongest one in the window. For trans-spliced genes, this is the SL acceptor rather than the outron TSS. `--tss_selection dominant` takes the strongest peak instead.
+   - It uses the dominant CTSS (peak) of TSS clusters within `--tss_max_dist` (500) bases of the ATG.
+   - By default (`--tss_selection auto`) it takes the strongest mature-mRNA 5' end among peaks at least `--tss_min_rel` (10%) as strong as the strongest peak in the EGAPx 5' UTR. SL acceptors compete only with non-SL TSSs downstream of every acceptor, so a non-SL outron start cannot win. `closest_atg` and `dominant` are alternatives.
    - The TSS is labelled `sl` (spliced-leader acceptor) or `nosl` from the fraction of SL reads in the cluster. Datasets without an SL table are all `nosl`.
    - SL TSSs also get a `trans_splice_acceptor_site` feature and an AG-acceptor check.
 2. **3' end: set from the best available evidence.**
    - (i) It keeps the EGAPx end when EGAPx found poly(A)-tail reads.
-   - (ii) Otherwise it moves to the polyadenylation signal (`AATAAA`) closest to the EGAPx end, within `--pas_window` (500) bases.
+   - (ii) Otherwise it uses the polyadenylation signal (`--pas_motifs`, default `AATAAA,ATTAAA`) closest to the EGAPx end: the new end is the motif end + `--pas_offset` (15), within `--pas_window` (500) bases of the EGAPx end.
    - (iii) Otherwise it keeps the EGAPx end.
-3. **Operons.** For genomes with spliced-leader CAGE data, same-strand genes closer than `--operon_max_gap` (500) bases are grouped into operons. A gene with its own non-SL TSS starts a new operon, however close it is to the previous gene. Genomes without a spliced leader get UTRs only. Trans-splicing and operons are separate switches (`--trans_splicing`, `--operons`), since trans-splicing organisms need not have operons.
+3. **Operons.** For genomes with spliced-leader CAGE data, same-strand genes closer than `--operon_max_gap` (500) bases are grouped into operons. A gene whose own non-SL TSS is stronger than any SL acceptor before it starts a new operon, however close it is to the previous gene. Each operon records which genes are SL-supported (`downstream_sl`, `operon_evidence`). Genomes without a spliced leader get UTRs only. Trans-splicing and operons are separate switches (`--trans_splicing`, `--operons`), since trans-splicing organisms need not have operons.
 4. **UTR features.** Explicit `five_prime_UTR` and `three_prime_UTR` features are written, with evidence attributes. CDSs are never changed.
 
-This pipeline is based on the CAGE 5' UTR annotation workflow in [LuscombeU_5primeanno](https://github.com/johannesnicolaus/LuscombeU_5primeanno). That workflow added SL and non-SL CAGE 5' UTRs to *O. dioica* gene models that had none (OKI2018_I69, OSKA2016 and Bar2). This pipeline brings the same approach to EGAPx annotations, which already have UTRs, as an nf-core pipeline. The `five_prime_UTR` naming and the `tss_type=sl|nosl` labels come from that workflow.
+This pipeline is based on the CAGE 5' UTR annotation workflow in [LuscombeU_5primeanno](https://github.com/johannesnicolaus/LuscombeU_5primeanno). That workflow added SL and non-SL CAGE 5' UTRs to _O. dioica_ gene models that had none (OKI2018_I69, OSKA2016 and Bar2). This pipeline brings the same approach to EGAPx annotations, which already have UTRs, as an nf-core pipeline. The `five_prime_UTR` naming and the `tss_type=sl|nosl` labels come from that workflow.
 
 Other code it builds on:
+
 - The 5' and 3' rules are adapted from the [annotationpolish](https://github.com/oist/LuscombeU_annotationpolish) R functions `add_five_prime_utr()` and `add_three_prime_utr()`. Those functions only extended UTRs; this pipeline can also trim the over-extended EGAPx UTRs.
 - The operon rules come from annotationpolish's `calcOperons()` and `split_operons()`.
 
@@ -52,6 +52,7 @@ Steps:
 > If you are new to Nextflow and nf-core, please refer to [this page](https://nf-co.re/docs/get_started/environment_setup/overview) on how to set-up Nextflow.
 
 First, process the CAGE libraries against the **same genome** as the annotation. There are two routes:
+
 - run [luscombeu/cagescan](https://github.com/johannesnicolaus/cagescan_nextflow), with `--sl_sequence` for organisms with trans-splicing;
 - use TSS clusters from any CAGE workflow (e.g. nf-core/cageseq, CAGEr, CAGEfightR) as BED files. If the organism has trans-splicing, give a second BED of spliced-leader (trans-splice acceptor) clusters.
 

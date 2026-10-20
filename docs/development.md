@@ -2,30 +2,28 @@
 
 ## Status
 
-The pipeline code is complete, but it has **not been run yet**. The test data are still being prepared, so the following are not done:
+The pipeline has been run on O10, I69 EGAPx and _C. elegans_ (below and rationale.md, section 10).
 
-- `conf/test.config` and `conf/test_full.config` have `input = null`.
-- The local modules have no `tests/main.nf.test` yet.
-- `tests/default.nf.test` is the template's pipeline test and has no snapshot.
+- `-profile test` uses the bundled _C. elegans_ test data (`tests/testdata/`, 400 kb of chromosome III; built by `tests/testdata/make_testdata.py` from public data). It runs both input routes, a cagescan results directory (`ce_cagescan`) and BED files (`ce_bed`), which must give the same result.
+- `tests/default.nf.test` snapshots the `-profile test` outputs.
+- `tests/scripts/test_rules.py` checks the selection, 3' guard and operon rules on small synthetic cases (`python3 tests/scripts/test_rules.py`).
+- The local modules have no `tests/main.nf.test`.
 
 ## Runs so far
 
 - 2026-10-18, Osaka O10: O10 genome, O10.1.0 v1.3 GFF3 (AUGUSTUS models that already had CAGE UTRs), and cagescan `osa_MGI_220209_v4` (CAGEfightR clusters, separate SL clusters). Run directory `/flash/LuscombeU/nico/utrannotation_runs/osa_O10_v1.3`. Completed, 12 tasks.
   - 5' ends: 65% of 17,686 mRNAs got a CAGE TSS, 42% of them sl. 98.7% of sl TSSs follow an AG.
   - Proteins: all CDSs unchanged. 17,646 proteins are identical to the v1.3 peptides; the other 40 differ only in how internal stop codons are written (`*` vs `.`).
-  - Operons: 2,496, with 43% of genes. Compared with the v1.3 operons, 84% of operonic genes are shared and 1,504 gene sets are identical.
+  - Operons (gap rule of the time, between gene ends): 2,496, with 43% of genes. Compared with the v1.3 operons, 84% of operonic genes are shared and 1,504 gene sets are identical.
   - The MultiQC length plots were not parsed (numeric first bin label); fixed afterwards.
 
-- 2026-10-18, I69 EGAPx with the Okinawa CAGEr consensus clusters: `utrannotation_runs/oki_I69_egapx` (repackaged as cagescan output) and `oki_I69_egapx_bed` (BED input). Both completed with identical results. Also an O10 rerun with the new defaults. See rationale.md, section 10.
+- 2026-10-18, I69 EGAPx with the Okinawa CAGEr consensus clusters: `utrannotation_runs/oki_I69_egapx` (repackaged as cagescan output) and `oki_I69_egapx_bed` (BED input). Both give identical UTR coordinates (the operon outputs of `oki_I69_egapx` predated `--operon_gap_from` until the 2026-10-19 rerun). Also an O10 rerun with the new defaults. See rationale.md, section 10.
 
-- 2026-10-18, *C. elegans* accuracy benchmark against WormBase WS298 (`utrannotation_runs/celegans`, `tests/benchmark/`). See rationale.md, section 10.
+- 2026-10-18, _C. elegans_ accuracy benchmark against WormBase WS298 (`utrannotation_runs/celegans`, `tests/benchmark/`). See rationale.md, section 10.
 
-## Test data to add
+## Test data
 
-A small, self-contained data set:
-
-- a slice of the I25_prim genome (about 1 Mb of chr1) and the matching subset of the EGAPx `complete.genomic.gff`;
-- a cagescan results directory for the slice: `tss_clusters/broad/all_samples.broad.tss_clusters.bed`, `..._tss_cluster_counts.tsv` and, for the SL case, `..._tss_cluster_sl_counts.tsv`.
+`tests/testdata/` (see the docstring of `make_testdata.py` for sources): chromosome III 4.8–5.2 Mb of WBcel235 renamed `III_4.8M`, the WormBase WS298 models of that region with UTRs pushed out by 0–500 nt (as over-extended EGAPx models), and SLIC-CAGE clusters (SRR10568191) from cagescan with SL1 and SL2 leaders, both as a cagescan directory and as BED files. 144 genes, 18 WormBase operons.
 
 ## Cases the tests should cover
 
@@ -60,7 +58,7 @@ A small, self-contained data set:
 
 Operons (`ANNOTATE_OPERONS`):
 
-- [ ] Ganot et al. 2004 cyclin D3 operon (AJ628168) recovered as one operon. On OKI2018_I69 v2.3 with the old OKItoOKI consensus clusters, `bin/annotate_operons.py` gives PAR:15956186-15967604(-): POC5, IQCK, XPO7, DYNLL2, TUBD1, MBF1, CYCDC. PDCL3 is split off by a non-SL TSS of 783 reads.
+- [ ] Ganot et al. 2004 cyclin D3 operon (AJ628168) recovered as one operon. On OKI2018_I69 v2.3 with the old OKItoOKI consensus clusters and the old gap rule (between gene ends), `bin/annotate_operons.py` gave PAR:15956186-15967604(-): POC5, IQCK, XPO7, DYNLL2, TUBD1, MBF1, CYCDC. PDCL3 is split off by a non-SL TSS of 783 reads.
 - [ ] genome without SL counts: no operon step
 - [ ] `--operons false` (SL labels kept, no operons) and `--trans_splicing false` (all nosl, no operons)
 - [ ] several leaders (`tss_cluster_sl_leaders.tsv`): `sl_leader` attribute

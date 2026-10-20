@@ -10,10 +10,7 @@
             "type": "object",
             "fa_icon": "fas fa-terminal",
             "description": "Define where the pipeline should find input data and save output data.",
-            "required": [
-                "input",
-                "outdir"
-            ],
+            "required": ["input", "outdir"],
             "properties": {
                 "input": {
                     "type": "string",
@@ -29,10 +26,7 @@
                 "cluster_set": {
                     "type": "string",
                     "default": "broad",
-                    "enum": [
-                        "broad",
-                        "sharp"
-                    ],
+                    "enum": ["broad", "sharp"],
                     "description": "cagescan TSS cluster set to use (cagescan input only): `broad` (CAGEfightR or paraclu) or `sharp` (RECLU, reproducible across replicates).",
                     "fa_icon": "fas fa-layer-group"
                 },
@@ -72,12 +66,8 @@
                 "tss_selection": {
                     "type": "string",
                     "default": "auto",
-                    "enum": [
-                        "auto",
-                        "closest_atg",
-                        "dominant"
-                    ],
-                    "description": "Which qualifying TSS to use. `auto`: the strongest mature-mRNA 5' end (SL acceptors, and non-SL TSSs not upstream of an acceptor); `closest_atg`: the shortest 5' UTR; `dominant`: the highest count.",
+                    "enum": ["auto", "closest_atg", "dominant"],
+                    "description": "Which qualifying TSS to use. `auto`: the strongest mature-mRNA 5' end (SL acceptors, and non-SL TSSs downstream of every qualifying acceptor); `closest_atg`: the shortest 5' UTR; `dominant`: the highest count.",
                     "help_text": "`auto` suits metazoans with or without trans-splicing: without SL data it is the dominant TSS (the CAGE convention); with SL data a non-SL peak upstream of an SL acceptor, which may be the start of the outron (short-lived pre-mRNA), cannot win. See docs/rationale.md.",
                     "fa_icon": "fas fa-hand-pointer"
                 },
@@ -86,7 +76,7 @@
                     "default": 0.1,
                     "minimum": 0,
                     "maximum": 1,
-                    "description": "Minimum TSS count relative to the strongest TSS in the window, to ignore weak exonic CAGE peaks.",
+                    "description": "Minimum TSS count relative to the strongest reference TSS (by default the whole EGAPx 5' UTR; see `--tss_rel_whole_utr`), to ignore weak exonic CAGE peaks.",
                     "fa_icon": "fas fa-percent"
                 },
                 "tss_rel_whole_utr": {
@@ -158,7 +148,7 @@
                     "type": "string",
                     "default": "AATAAA,ATTAAA",
                     "pattern": "^[ACGTacgt]+(,[ACGTacgt]+)*$",
-                    "description": "Comma-separated polyadenylation-signal motifs (DNA, RNA sense). AATAAA and ATTAAA are the two most common metazoan signals (~53-58% and ~15-17% of human polyA sites).",
+                    "description": "Comma-separated polyadenylation-signal motifs (DNA, RNA sense). AATAAA and ATTAAA are the two most common signals at human polyA sites (~53-58% and ~15-17%; Tian & Graber 2012).",
                     "fa_icon": "fas fa-dna"
                 },
                 "pas_window": {
@@ -186,7 +176,7 @@
                 "trans_splicing": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Use the spliced-leader counts of the cagescan results to label TSSs `sl` / `nosl`. Genomes without SL counts are all `nosl` either way.",
+                    "description": "Use the spliced-leader counts of the cagescan results, or the `tss_sl` BED, to label TSSs `sl` / `nosl`. Genomes without SL data are all `nosl` either way.",
                     "help_text": "Set to false to ignore SL data: every TSS is `nosl`, no `trans_splice_acceptor_site` rows are written and no operons are annotated.",
                     "fa_icon": "fas fa-cut"
                 },
@@ -200,11 +190,7 @@
                 "operon_gap_from": {
                     "type": "string",
                     "default": "cds",
-                    "enum": [
-                        "cds",
-                        "transcript",
-                        "evidence"
-                    ],
+                    "enum": ["cds", "transcript", "evidence"],
                     "description": "How intergenic distances are measured: `cds` (stop codon to start codon), `transcript` (transcript ends) or `evidence` (transcript ends when the upstream 3' end is supported by PAS or poly(A) reads and the downstream 5' end by CAGE, otherwise CDS).",
                     "help_text": "Transcript-end distances would be the true intercistronic regions, but annotated UTR ends are imprecise; on I69 EGAPx and O10 they gave less SL-consistent operons than `cds`.",
                     "fa_icon": "fas fa-ruler-combined"
@@ -215,7 +201,7 @@
                     "minimum": 0,
                     "description": "Same-strand genes whose stop-to-start codon distance is below this join an operon (CDS distances; also the fallback of `--operon_gap_from evidence`).",
                     "fa_icon": "fas fa-ruler-horizontal",
-                    "help_text": "500 is Plessy et al. 2024's definition (gene models without UTRs). On the I69 EGAPx and O10 annotations, CDS windows of 400-500 gave the most SL-consistent operons and 500 is the smallest window that keeps the Ganot et al. 2004 cyclin D3 operon whole; see docs/rationale.md."
+                    "help_text": "500 is Plessy et al. 2024's definition (gene models without UTRs). On the I69 EGAPx and O10 annotations, CDS windows of 400-500 gave the most SL-consistent operons, and the Ganot et al. 2004 cyclin D3 operon needs at least 404 (its largest CDS gap is 403); see docs/rationale.md."
                 },
                 "operon_max_gap_tx": {
                     "type": "integer",
@@ -229,7 +215,15 @@
                     "type": "number",
                     "default": 0,
                     "minimum": 0,
-                    "description": "Minimum pooled count of a non-SL TSS that splits an operon before the downstream gene.",
+                    "description": "Minimum pooled count of a non-SL TSS that splits an operon, and of an SL TSS that shields a non-SL TSS next to it.",
+                    "fa_icon": "fas fa-cut"
+                },
+                "operon_split_rule": {
+                    "type": "string",
+                    "default": "dominant",
+                    "enum": ["dominant", "any", "none"],
+                    "description": "When a non-SL TSS between two genes splits an operon. `dominant`: only if it is stronger than every SL TSS between the genes; `any`: at any non-SL TSS; `none`: distance only.",
+                    "help_text": "On C. elegans, splits at a non-SL TSS weaker than an SL TSS in the same gap were wrong (the pair is a WormBase operon pair) 65% of the time, against 9% when the non-SL TSS dominated; `dominant` raised adjacent-pair precision/recall from 0.432/0.478 to 0.443/0.516. When the SL data contain no SL TSS (leader not detected), AG-preceded TSSs are taken as SL acceptors. See docs/rationale.md.",
                     "fa_icon": "fas fa-cut"
                 },
                 "operon_biotypes": {
@@ -307,14 +301,7 @@
                     "description": "Method used to save pipeline results to output directory.",
                     "help_text": "The Nextflow `publishDir` option specifies which intermediate files should be saved to the output directory. This option tells the pipeline what method should be used to move these files. See [Nextflow docs](https://www.nextflow.io/docs/latest/process.html#publishdir) for details.",
                     "fa_icon": "fas fa-copy",
-                    "enum": [
-                        "symlink",
-                        "rellink",
-                        "link",
-                        "copy",
-                        "copyNoFollow",
-                        "move"
-                    ],
+                    "enum": ["symlink", "rellink", "link", "copy", "copyNoFollow", "move"],
                     "hidden": true
                 },
                 "email_on_fail": {
@@ -384,10 +371,7 @@
                     "hidden": true
                 },
                 "help": {
-                    "type": [
-                        "boolean",
-                        "string"
-                    ],
+                    "type": ["boolean", "string"],
                     "description": "Display the help message."
                 },
                 "help_full": {
